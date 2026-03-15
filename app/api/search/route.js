@@ -1,0 +1,46 @@
+import { NextResponse } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
+import { createServerClient } from "@/lib/supabase-server";
+import { PROMPT_SEARCH } from "@/lib/prompts";
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+export async function POST(req) {
+  try {
+    const { query } = await req.json();
+    if (!query?.trim()) {
+      return NextResponse.json({ error: "Query vide" }, { status: 400 });
+    }
+
+    const supabase = createServerClient();
+
+    // Fetch all articles for context
+    const { data: articles } = await supabase
+      .from("articles")
+      .select("id, title, category, tags, summary_one_line, actionable_insights, contrarian_take")
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+    const kb = (articles || []).map(a =>
+      `[ID:${a.id}] ${a.title} | Cat: ${a.category} | Tags: ${(a.tags || []).join(",")} | ${a.summary_one_line} | Insights: ${(a.actionable_insights || []).join("; ")} | Contrarian: ${a.contrarian_take || ""}`
+    ).join("\n\n");
+
+    const msg = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 2000,
+      system: PROMPT_SEARCH,
+      messages: [{ role: "user", content: `Base:\n${kb}\n\nRecherche: ${query}` }],
+    });
+
+    const answer = msg.content[0]?.text || "";
+    const mentionedIds = [...answer.matchAll(/\[ID:([a-f0-9-]+)\]/g)].map(m => m[1]);
+    const matchedArticles = (articles || []).filter(a => mentionedIds.includes(a.id));
+
+    return NextResponse.json({
+      answer: answer.replace(/\[ID:[a-f0-9-]+\]/g, "").trim(),
+      articles: matchedArticles,
+    });
+  } catch (e) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}
