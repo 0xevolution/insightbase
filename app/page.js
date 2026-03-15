@@ -50,6 +50,7 @@ export default function Dashboard() {
   const [genContent, setGenContent] = useState("");
   const [genLoad, setGenLoad] = useState(false);
   const [filterCat, setFilterCat] = useState("Tous");
+  const [kwSearch, setKwSearch] = useState("");
   const [toast, setToast] = useState(null);
   const [showRaw, setShowRaw] = useState(false);
   const [ytTopic, setYtTopic] = useState("");
@@ -129,7 +130,24 @@ export default function Dashboard() {
   };
 
   // ── COMPUTED ──
-  const filtered = filterCat === "Tous" ? articles : articles.filter(a => a.category === filterCat);
+  const filtered = articles.filter(a => {
+    // Category filter
+    if (filterCat !== "Tous" && a.category !== filterCat) return false;
+    // Keyword filter
+    if (kwSearch.trim()) {
+      const q = kwSearch.toLowerCase().trim();
+      const words = q.split(/\s+/);
+      const searchable = [
+        a.title, a.source, a.summary_one_line, a.summary_paragraph, a.summary_full,
+        a.one_key_takeaway, a.contrarian_take, a.blind_spots, a.category,
+        ...(a.tags || []), ...(a.key_concepts || []), ...(a.actionable_insights || []),
+        ...(a.mental_models || []),
+        ...((a.golden_nuggets || []).map(n => `${n.title || ""} ${n.idea || ""} ${n.why_powerful || ""}`)),
+      ].filter(Boolean).join(" ").toLowerCase();
+      return words.every(w => searchable.includes(w));
+    }
+    return true;
+  });
   const unexpl = articles.filter(a => !a.exploited).length;
   const avgS = articles.length ? Math.round(articles.reduce((s,a) => s+((a.novelty_score||0)+(a.actionability_score||0)+(a.content_potential_score||0))/3, 0)/articles.length*10)/10 : 0;
 
@@ -281,11 +299,77 @@ export default function Dashboard() {
   const VKnow = () => (
     <div>
       <h1 className="text-2xl font-extrabold tracking-tight mb-1">Base de connaissances</h1>
-      <p className="text-gray-500 text-sm mb-5">{articles.length} article{articles.length!==1?"s":""}</p>
-      <Card className="mb-5">
-        <div className="flex items-center gap-1.5 text-[11px] font-bold text-accent uppercase tracking-widest mb-3"><IC.chat s={14} c="#00d4aa"/> Recherche intelligente</div>
+      <p className="text-gray-500 text-sm mb-5">{articles.length} article{articles.length!==1?"s":""} — {filtered.length} affiché{filtered.length!==1?"s":""}</p>
+
+      {/* Keyword Search Bar - instant */}
+      <div className="mb-4">
+        <div className="relative">
+          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"><IC.search s={16}/></div>
+          <input
+            value={kwSearch}
+            onChange={e=>setKwSearch(e.target.value)}
+            placeholder="Recherche par mots-clés (titre, tags, concepts, insights...)"
+            className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-gray-200 text-sm outline-none font-sans placeholder:text-gray-600"
+          />
+          {kwSearch && <button onClick={()=>setKwSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 border-none bg-transparent cursor-pointer"><IC.x s={14}/></button>}
+        </div>
+      </div>
+
+      {/* Category Filter */}
+      <div className="flex gap-1.5 flex-wrap mb-4">
+        {["Tous",...CATS].map(c=><button key={c} onClick={()=>setFilterCat(c)} className="px-3 py-1 rounded-lg border-none cursor-pointer text-[11px] font-bold transition-all" style={{background:filterCat===c?`${CC[c]||"#00d4aa"}22`:"rgba(255,255,255,0.04)",color:filterCat===c?(CC[c]||"#00d4aa"):"#777"}}>{c} {c!=="Tous"&&`(${articles.filter(a=>a.category===c).length})`}</button>)}
+      </div>
+
+      {/* Results */}
+      {filtered.length>0?filtered.map(a=>(
+        <CardH key={a.id} onClick={()=>{setSelArticle(a);setView("brief");}}>
+          <div className="flex justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Badge cat={a.category}/>
+                {!a.exploited&&<span className="text-[9px] text-yellow-400 font-bold">● Non exploité</span>}
+              </div>
+              <h4 className="text-sm font-bold mb-1">{a.title}</h4>
+              <p className="text-xs text-gray-500 leading-relaxed mb-2">{a.summary_one_line}</p>
+
+              {/* Show matching insights when searching */}
+              {kwSearch.trim() && (a.actionable_insights||[]).filter(ins => ins.toLowerCase().includes(kwSearch.toLowerCase())).length > 0 && (
+                <div className="mb-2">
+                  {(a.actionable_insights||[]).filter(ins => ins.toLowerCase().includes(kwSearch.toLowerCase())).slice(0,2).map((ins,i) => {
+                    const c = ins.startsWith("FAIRE")?"#00d4aa":ins.startsWith("TESTER")?"#fbbf24":"#c084fc";
+                    return <div key={i} className="px-2 py-1 rounded-r-md mb-1 text-[10px] leading-relaxed text-gray-400" style={{background:`${c}08`,borderLeft:`2px solid ${c}`}}>{ins.substring(0,150)}...</div>;
+                  })}
+                </div>
+              )}
+
+              {/* Show key takeaway when searching */}
+              {kwSearch.trim() && a.one_key_takeaway && a.one_key_takeaway.toLowerCase().includes(kwSearch.toLowerCase()) && (
+                <div className="px-2 py-1 bg-sky-400/[0.06] border-l-2 border-sky-400 rounded-r-md mb-2">
+                  <p className="text-[10px] text-sky-400 leading-relaxed">💎 {a.one_key_takeaway}</p>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-1">
+                {(a.tags||[]).slice(0,5).map((t,i)=><span key={i} className={`px-1.5 py-0.5 rounded text-[10px] font-semibold bg-white/[0.06] ${kwSearch.trim() && t.toLowerCase().includes(kwSearch.toLowerCase()) ? "text-accent bg-accent/10" : "text-gray-500"}`}>#{t}</span>)}
+              </div>
+            </div>
+            <div className="text-right ml-4">
+              <span className="text-[10px] text-gray-600">{new Date(a.created_at).toLocaleDateString("fr-FR")}</span>
+              <div className="mt-2">
+                <span className="text-lg font-extrabold text-accent">{Math.round(((a.novelty_score||0)+(a.actionability_score||0)+(a.content_potential_score||0))/3*10)/10}</span>
+                <span className="text-[10px] text-gray-600">/10</span>
+              </div>
+            </div>
+          </div>
+        </CardH>
+      )):<div className="text-center py-10 text-gray-600">{kwSearch.trim() ? `Aucun résultat pour "${kwSearch}"` : "Aucun article"}</div>}
+
+      {/* AI Deep Search - secondary */}
+      <Card className="mt-6">
+        <div className="flex items-center gap-1.5 text-[11px] font-bold text-accent uppercase tracking-widest mb-3"><IC.chat s={14} c="#00d4aa"/> Recherche IA profonde</div>
+        <p className="text-[11px] text-gray-600 mb-3">Pose une question complexe — l'IA analyse toute ta base et synthétise la réponse.</p>
         <div className="flex gap-2">
-          <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&smartSearch()} placeholder="Ex: 'Quels frameworks de scaling j'ai capturés ?'" className="flex-1 px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-gray-200 text-sm outline-none font-sans"/>
+          <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&smartSearch()} placeholder="Ex: 'Quels sont les patterns communs entre mes articles sur le scaling ?'" className="flex-1 px-3.5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-gray-200 text-sm outline-none font-sans"/>
           <Btn onClick={smartSearch} disabled={searchLoad}>{searchLoad?<IC.load s={14}/>:<IC.search s={14}/>}</Btn>
         </div>
         {searchRes && (
@@ -295,15 +379,6 @@ export default function Dashboard() {
           </div>
         )}
       </Card>
-      <div className="flex gap-1.5 flex-wrap mb-4">
-        {["Tous",...CATS].map(c=><button key={c} onClick={()=>setFilterCat(c)} className={`px-3 py-1 rounded-lg border-none cursor-pointer text-[11px] font-bold transition-all ${filterCat===c?`text-[${CC[c]||"#00d4aa"}]`:"text-gray-500"}`} style={{background:filterCat===c?`${CC[c]||"#00d4aa"}22`:"rgba(255,255,255,0.04)",color:filterCat===c?(CC[c]||"#00d4aa"):"#777"}}>{c} {c!=="Tous"&&`(${articles.filter(a=>a.category===c).length})`}</button>)}
-      </div>
-      {filtered.length>0?filtered.map(a=>(
-        <CardH key={a.id} onClick={()=>{setSelArticle(a);setView("brief");}}>
-          <div className="flex justify-between"><div className="flex-1"><div className="flex items-center gap-2 mb-1.5"><Badge cat={a.category}/>{!a.exploited&&<span className="text-[9px] text-yellow-400 font-bold">● Non exploité</span>}</div><h4 className="text-sm font-bold mb-1">{a.title}</h4><p className="text-xs text-gray-500 leading-relaxed mb-2">{a.summary_one_line}</p><div className="flex flex-wrap gap-1">{(a.tags||[]).slice(0,4).map((t,i)=><span key={i} className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-white/[0.06] text-gray-500">#{t}</span>)}</div></div>
-          <div className="text-right ml-4"><span className="text-[10px] text-gray-600">{new Date(a.created_at).toLocaleDateString("fr-FR")}</span><div className="mt-2"><span className="text-lg font-extrabold text-accent">{Math.round(((a.novelty_score||0)+(a.actionability_score||0)+(a.content_potential_score||0))/3*10)/10}</span><span className="text-[10px] text-gray-600">/10</span></div></div></div>
-        </CardH>
-      )):<div className="text-center py-10 text-gray-600">Aucun article</div>}
     </div>
   );
 
