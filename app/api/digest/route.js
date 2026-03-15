@@ -32,7 +32,7 @@ export async function POST(req) {
     // Save to Supabase
     const supabase = createServerClient();
     const { data, error } = await supabase.from("articles").insert({
-      raw_input: content.substring(0, 10000),
+      raw_input: content,
       input_type: inputType || "texte",
       title: parsed.title,
       source: parsed.source,
