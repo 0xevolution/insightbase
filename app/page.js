@@ -51,6 +51,7 @@ export default function Dashboard() {
   const [genLoad, setGenLoad] = useState(false);
   const [filterCat, setFilterCat] = useState("Tous");
   const [toast, setToast] = useState(null);
+  const [showRaw, setShowRaw] = useState(false);
   const [ytTopic, setYtTopic] = useState("");
   const [ytSel, setYtSel] = useState([]);
   const [ytScript, setYtScript] = useState("");
@@ -68,6 +69,7 @@ export default function Dashboard() {
     setScripts(data || []);
   };
   useEffect(() => { fetchArticles(); fetchScripts(); }, []);
+  useEffect(() => { setShowRaw(false); }, [selArticle]);
 
   const showToast = m => { setToast(m); setTimeout(() => setToast(null), 3000); };
   const copyTxt = t => { navigator.clipboard.writeText(t); showToast("Copié !"); };
@@ -216,8 +218,23 @@ export default function Dashboard() {
           <Card>
             <div className="flex justify-between items-start mb-4">
               <div><Badge cat={da.category}/><h2 className="text-lg font-extrabold mt-2 tracking-tight">{da.title}</h2>{da.source&&<p className="text-[11px] text-gray-600 mt-1">{da.source}</p>}</div>
-              <button onClick={()=>deleteArt(da.id)} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10"><IC.trash s={14} c="#f87171"/></button>
+              <div className="flex gap-1.5">
+                <button onClick={()=>setShowRaw(!showRaw)} className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] font-bold text-gray-400 border-none cursor-pointer">{showRaw ? "Masquer brut" : "📄 Article brut"}</button>
+                <button onClick={()=>deleteArt(da.id)} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10"><IC.trash s={14} c="#f87171"/></button>
+              </div>
             </div>
+
+            {showRaw && da.raw_input && (
+              <div className="mb-5">
+                <div className="flex justify-between items-center mb-2">
+                  <SecHead color="#888">Article brut original</SecHead>
+                  <button onClick={()=>copyTxt(da.raw_input)} className="px-2 py-1 rounded-md bg-white/5 text-[10px] text-gray-400 border-none cursor-pointer hover:bg-white/10 flex items-center gap-1"><IC.copy s={11}/> Copier</button>
+                </div>
+                <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4 max-h-[400px] overflow-y-auto">
+                  <pre className="text-[12px] leading-6 text-gray-500 whitespace-pre-wrap font-sans">{da.raw_input}</pre>
+                </div>
+              </div>
+            )}
 
             <div className="mb-5"><SecHead color="#00d4aa">Résumé express</SecHead><p className="text-[15px] leading-relaxed text-gray-300 font-semibold">{da.summary_one_line}</p></div>
             <div className="mb-5"><SecHead color="#38bdf8">Résumé développé</SecHead><p className="text-[13px] leading-7 text-gray-400">{da.summary_paragraph}</p></div>
