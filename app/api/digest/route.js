@@ -1,87 +1,62 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createServerClient } from "@/lib/supabase-server";
-import { PROMPT_X, PROMPT_LINKEDIN, PROMPT_NEWSLETTER } from "@/lib/prompts";
+import { DIGEST_PROMPT } from "@/lib/prompts";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const PROMPTS = { x: PROMPT_X, linkedin: PROMPT_LINKEDIN, newsletter: PROMPT_NEWSLETTER };
-const FIELDS = { x: "content_x", linkedin: "content_linkedin", newsletter: "content_newsletter" };
-
 export async function POST(req) {
   try {
-    const { articleId, platform } = await req.json();
-    if (!articleId || !platform || !PROMPTS[platform]) {
-      return NextResponse.json({ error: "Paramètres manquants" }, { status: 400 });
+    const { content, inputType } = await req.json();
+    if (!content?.trim()) {
+      return NextResponse.json({ error: "Contenu vide" }, { status: 400 });
     }
 
-    const supabase = createServerClient();
-
-    // Fetch article
-    const { data: article, error: fetchErr } = await supabase
-      .from("articles")
-      .select("*")
-      .eq("id", articleId)
-      .single();
-
-    if (fetchErr || !article) {
-      return NextResponse.json({ error: "Article non trouvé" }, { status: 404 });
-    }
-
-    // Build context - handle both V1 (array) and V2 (object) content_angles
-    const angles = article.content_angles;
-    let anglesStr = "N/A";
-    if (Array.isArray(angles)) {
-      anglesStr = angles.join(" | ");
-    } else if (angles && typeof angles === "object") {
-      const platformKey = platform === "x" ? "x_twitter" : platform;
-      const platformAngles = angles[platformKey];
-      if (platformAngles && typeof platformAngles === "object") {
-        anglesStr = Object.entries(platformAngles).map(([k, v]) => `${k}: ${v}`).join(" | ");
-      } else {
-        anglesStr = Object.entries(angles).map(([k, v]) => typeof v === "object" ? Object.values(v).join(" / ") : v).join(" | ");
-      }
-    }
-
-    // Build golden nuggets string if available
-    const nuggets = article.golden_nuggets;
-    let nuggetsStr = "";
-    if (Array.isArray(nuggets) && nuggets.length > 0) {
-      nuggetsStr = nuggets.map((n, i) => `Pépite ${i+1}: ${n.title || ""} — ${n.idea || ""} (${n.why_powerful || ""})`).join("\n");
-    }
-
-    const ctx = [
-      `Titre: ${article.title}`,
-      `Source: ${article.source || "N/A"}`,
-      `Résumé complet: ${article.summary_full}`,
-      `Résumé court: ${article.summary_paragraph || ""}`,
-      nuggetsStr ? `Pépites clés:\n${nuggetsStr}` : null,
-      `Insights actionnables:\n${(article.actionable_insights || []).map((x, i) => `${i + 1}. ${x}`).join("\n")}`,
-      `Modèles mentaux: ${(article.mental_models || []).join(" | ")}`,
-      `Angle contrarian: ${article.contrarian_take || "N/A"}`,
-      `Angles morts: ${article.blind_spots || "N/A"}`,
-      `Concepts clés: ${(article.key_concepts || []).join(", ")}`,
-      `Takeaway: ${article.one_key_takeaway}`,
-      `Angles contenu (${platform}): ${anglesStr}`,
-    ].filter(Boolean).join("\n");
-
-    // Generate
+    // Call Claude to digest
     const msg = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 4000,
-      system: PROMPTS[platform],
-      messages: [{ role: "user", content: ctx }],
+      system: DIGEST_PROMPT,
+      messages: [{ role: "user", content }],
     });
 
-    const generatedContent = msg.content[0]?.text || "";
+    const rawText = msg.content[0]?.text || "";
+    let parsed;
+    try {
+      const cleaned = rawText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      parsed = JSON.parse(cleaned);
+    } catch {
+      return NextResponse.json({ error: "Erreur de parsing IA", raw: rawText }, { status: 500 });
+    }
 
-    // Save to DB
-    await supabase
-      .from("articles")
-      .update({ [FIELDS[platform]]: generatedContent, exploited: true })
-      .eq("id", articleId);
+    // Save to Supabase
+    const supabase = createServerClient();
+    const { data, error } = await supabase.from("articles").insert({
+      raw_input: content,
+      input_type: inputType || "texte",
+      title: parsed.title,
+      source: parsed.source,
+      summary_one_line: parsed.summary_one_line,
+      summary_paragraph: parsed.summary_paragraph,
+      summary_full: parsed.summary_full,
+      actionable_insights: parsed.actionable_insights || [],
+      mental_models: parsed.mental_models || [],
+      contrarian_take: parsed.contrarian_take,
+      key_concepts: parsed.key_concepts || [],
+      content_angles: parsed.content_angles || [],
+      one_key_takeaway: parsed.one_key_takeaway,
+      category: parsed.category,
+      tags: parsed.tags || [],
+      novelty_score: parsed.novelty_score || 5,
+      actionability_score: parsed.actionability_score || 5,
+      content_potential_score: parsed.content_potential_score || 5,
+    }).select().single();
 
-    return NextResponse.json({ content: generatedContent });
+    if (error) {
+      return NextResponse.json({ error: "Erreur DB: " + error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ article: data });
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
