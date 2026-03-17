@@ -1,19 +1,19 @@
 "use client";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase-browser";
-
+ 
 const supabase = createClient();
-
+ 
 // ─── CONSTANTS ──────────────────────────────────────────────────
 const CATS = ["IA","Business","Mindset","Vibecoding","Outils","Tendances","Dev Personnel","Trading","Marketing"];
 const CC = {"IA":"#00d4aa","Business":"#fbbf24","Mindset":"#c084fc","Vibecoding":"#38bdf8","Outils":"#fb923c","Tendances":"#f472b6","Dev Personnel":"#a3e635","Trading":"#6ee7b7","Marketing":"#f87171"};
-
+ 
 // ─── API HELPERS ────────────────────────────────────────────────
 const api = async (path, body) => {
   const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   return r.json();
 };
-
+ 
 // ─── ICONS ──────────────────────────────────────────────────────
 const I = ({d,s=20,c="currentColor"}) => <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>;
 const IC = {
@@ -32,7 +32,7 @@ const IC = {
   x:p=><I {...p} d="M18 6L6 18M6 6l12 12"/>,
   film:p=><I {...p} d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5M2 2h20v20H2z"/>,
 };
-
+ 
 // ─── MAIN ───────────────────────────────────────────────────────
 export default function Dashboard() {
   const [view, setView] = useState("capture");
@@ -59,7 +59,7 @@ export default function Dashboard() {
   const [ytLoad, setYtLoad] = useState(false);
   const [ytSaved, setYtSaved] = useState(false);
   const [ytSelScript, setYtSelScript] = useState(null);
-
+ 
   // ── LOAD DATA ──
   const fetchArticles = async () => {
     const { data } = await supabase.from("articles").select("*").order("created_at", { ascending: false });
@@ -71,10 +71,10 @@ export default function Dashboard() {
   };
   useEffect(() => { fetchArticles(); fetchScripts(); }, []);
   useEffect(() => { setShowRaw(false); }, [selArticle]);
-
+ 
   const showToast = m => { setToast(m); setTimeout(() => setToast(null), 3000); };
   const copyTxt = t => { navigator.clipboard.writeText(t); showToast("Copié !"); };
-
+ 
   // ── DIGEST ──
   const digest = async () => {
     if (!input.trim()) return;
@@ -91,7 +91,7 @@ export default function Dashboard() {
     } catch (e) { showToast("Erreur : " + e.message); }
     setLoading(false);
   };
-
+ 
   // ── GENERATE ──
   const genCont = async (art, plat) => {
     setGenPlat(plat); setGenLoad(true); setGenContent("");
@@ -102,7 +102,7 @@ export default function Dashboard() {
     } catch (e) { setGenContent("Erreur : " + e.message); }
     setGenLoad(false);
   };
-
+ 
   // ── SEARCH ──
   const smartSearch = async () => {
     if (!searchQ.trim()) return;
@@ -113,7 +113,7 @@ export default function Dashboard() {
     } catch (e) { setSearchRes({ answer: "Erreur", articles: [] }); }
     setSearchLoad(false);
   };
-
+ 
   // ── YOUTUBE ──
   const genYouTube = async () => {
     if (ytSel.length === 0 && !ytTopic.trim()) { showToast("Sélectionne des articles ou entre un sujet"); return; }
@@ -125,7 +125,7 @@ export default function Dashboard() {
     } catch (e) { setYtScript("Erreur : " + e.message); }
     setYtLoad(false);
   };
-
+ 
   // ── DELETE ──
   const deleteArt = async id => {
     await supabase.from("articles").delete().eq("id", id);
@@ -133,7 +133,7 @@ export default function Dashboard() {
     if (selArticle?.id === id) setSelArticle(null);
     showToast("Supprimé");
   };
-
+ 
   // ── COMPUTED ──
   const filtered = articles.filter(a => {
     // Category filter
@@ -155,7 +155,7 @@ export default function Dashboard() {
   });
   const unexpl = articles.filter(a => !a.exploited).length;
   const avgS = articles.length ? Math.round(articles.reduce((s,a) => s+((a.novelty_score||0)+(a.actionability_score||0)+(a.content_potential_score||0))/3, 0)/articles.length*10)/10 : 0;
-
+ 
   // ── HELPER COMPONENTS ──
   const Badge = ({cat}) => <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold" style={{background:`${CC[cat]||"#888"}18`,color:CC[cat]||"#888"}}>{cat}</span>;
   const SecHead = ({color,children}) => <h4 className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{color}}>{children}</h4>;
@@ -166,7 +166,7 @@ export default function Dashboard() {
     const v = variant==="primary" ? "bg-gradient-to-r from-accent to-accent-dark text-bg" : "bg-white/[0.06] text-gray-400 hover:bg-white/[0.1]";
     return <button className={`${base} ${v} ${className}`} {...props}>{children}</button>;
   };
-
+ 
   // ── CONTENT MODAL ──
   const ContentModal = () => genPlat && (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-lg z-50 flex items-center justify-center p-5" onClick={() => {setGenPlat(null);setGenContent("");}}>
@@ -189,14 +189,14 @@ export default function Dashboard() {
       </div>
     </div>
   );
-
+ 
   // ══════════════════════════════════════════════════════════════
   // VIEWS
   // ══════════════════════════════════════════════════════════════
-
+ 
   const VCapture = () => {
     const [dragOver, setDragOver] = useState(false);
-
+ 
     const handlePdfFile = async (file) => {
       if (!file || file.type !== "application/pdf") {
         showToast("Seuls les fichiers PDF sont acceptés");
@@ -206,37 +206,40 @@ export default function Dashboard() {
       setLoadMsg("Extraction du PDF...");
       setLoading(true);
       try {
-        // Use pdf.js CDN to extract text
-        const pdfjsLib = await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs";
         const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const uint8 = new Uint8Array(arrayBuffer);
+        const decoder = new TextDecoder("utf-8", { fatal: false });
+        const raw = decoder.decode(uint8);
         let text = "";
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          text += content.items.map(item => item.str).join(" ") + "\n\n";
+        const streams = raw.match(/stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g) || [];
+        for (const s of streams) {
+          const clean = s.replace(/^stream[\r\n]+/, "").replace(/[\r\n]+endstream$/, "");
+          const readable = clean.replace(/[^\x20-\x7E\r\n]/g, " ").replace(/\s+/g, " ").trim();
+          if (readable.length > 20) text += readable + "\n\n";
         }
-        setInput(text.trim());
-        showToast(`PDF extrait : ${file.name} (${pdf.numPages} pages)`);
+        if (!text.trim()) {
+          text = raw.replace(/[^\x20-\x7E\r\n]/g, " ").replace(/\s{3,}/g, "\n").trim();
+        }
+        setInput(text.trim() || "Impossible d'extraire le texte automatiquement. Copie-colle le contenu du PDF manuellement.");
+        showToast("PDF traité : " + file.name);
       } catch (e) {
-        showToast("Erreur extraction PDF : " + e.message);
+        showToast("Erreur PDF : " + e.message);
       }
       setLoading(false);
     };
-
+ 
     const handleDrop = (e) => {
       e.preventDefault();
       setDragOver(false);
       const file = e.dataTransfer.files[0];
       handlePdfFile(file);
     };
-
+ 
     const handleFileInput = (e) => {
       const file = e.target.files[0];
       handlePdfFile(file);
     };
-
+ 
     return (
       <div>
         <h1 className="text-2xl font-extrabold tracking-tight mb-1">Capturer un article</h1>
@@ -246,7 +249,7 @@ export default function Dashboard() {
             <button key={k} onClick={()=>setInputType(k)} className={`px-3.5 py-1.5 rounded-lg border-none cursor-pointer text-xs font-bold transition-all ${inputType===k?"bg-accent text-bg":"bg-white/5 text-gray-500"}`}>{l}</button>
           )}
         </div>
-
+ 
         {/* PDF Drag & Drop Zone */}
         {inputType === "pdf" && !input && (
           <div
@@ -262,7 +265,7 @@ export default function Dashboard() {
             <input id="pdf-input" type="file" accept=".pdf" onChange={handleFileInput} className="hidden" />
           </div>
         )}
-
+ 
         <Card>
           <textarea value={input} onChange={e=>setInput(e.target.value)} placeholder={inputType==="url"?"https://...":inputType==="pdf"?"Le texte du PDF apparaîtra ici après extraction...":"Colle le contenu ici..."} className="w-full min-h-[130px] p-3.5 bg-white/5 border border-white/10 rounded-xl text-gray-200 text-sm outline-none resize-y font-sans" />
           <div className="flex justify-between items-center mt-3.5">
@@ -285,7 +288,7 @@ export default function Dashboard() {
       </div>
     );
   };
-
+ 
   const VBrief = () => {
     const da = selArticle || articles[0];
     const todayArts = articles.filter(a => new Date(a.created_at).toDateString() === new Date().toDateString());
@@ -307,7 +310,7 @@ export default function Dashboard() {
                 <button onClick={()=>deleteArt(da.id)} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10"><IC.trash s={14} c="#f87171"/></button>
               </div>
             </div>
-
+ 
             {showRaw && da.raw_input && (
               <div className="mb-5">
                 <div className="flex justify-between items-center mb-2">
@@ -319,11 +322,11 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
-
+ 
             <div className="mb-5"><SecHead color="#00d4aa">Résumé express</SecHead><p className="text-[15px] leading-relaxed text-gray-300 font-semibold">{da.summary_one_line}</p></div>
             <div className="mb-5"><SecHead color="#38bdf8">Résumé développé</SecHead><p className="text-[13px] leading-7 text-gray-400">{da.summary_paragraph}</p></div>
             <div className="mb-5"><SecHead color="#fbbf24">Analyse complète</SecHead><p className="text-[13px] leading-7 text-gray-400">{da.summary_full}</p></div>
-
+ 
             <div className="mb-5">
               <SecHead color="#c084fc">⚡ Insights actionnables</SecHead>
               <div className="flex flex-col gap-1.5">
@@ -333,19 +336,19 @@ export default function Dashboard() {
                 })}
               </div>
             </div>
-
+ 
             {(da.mental_models||[]).length>0 && <div className="mb-5"><SecHead color="#fb923c">🧠 Modèles mentaux</SecHead>{da.mental_models.map((m,i)=><div key={i} className="px-3 py-2 bg-orange-500/[0.06] rounded-lg mb-1 text-xs text-gray-300 leading-relaxed">{m}</div>)}</div>}
-
+ 
             {da.contrarian_take && <div className="mb-5"><SecHead color="#f472b6">🔄 Angle contrarian</SecHead><div className="px-4 py-3 bg-pink-400/[0.06] border-l-[3px] border-pink-400 rounded-r-lg"><p className="text-[13px] font-semibold text-pink-400 leading-relaxed">{da.contrarian_take}</p></div></div>}
-
+ 
             <div className="mb-5"><SecHead color="#38bdf8">💎 Takeaway principal</SecHead><div className="px-4 py-3.5 bg-gradient-to-r from-sky-400/[0.08] to-accent/[0.05] border-l-[3px] border-sky-400 rounded-r-xl"><p className="text-sm font-bold text-sky-400 leading-relaxed">{da.one_key_takeaway}</p></div></div>
-
+ 
             {(da.content_angles||[]).length>0 && <div className="mb-5"><SecHead color="#a3e635">🎯 Angles de contenu</SecHead>{da.content_angles.map((a,i)=><div key={i} className="px-2.5 py-1.5 bg-lime-400/[0.06] rounded-md mb-1 text-[11px] text-gray-400 leading-relaxed">{a}</div>)}</div>}
-
+ 
             <div className="mb-5"><SecHead color="#888">Scores</SecHead><div className="flex gap-4">{[{l:"Nouveauté",s:da.novelty_score,c:"#00d4aa"},{l:"Actionnabilité",s:da.actionability_score,c:"#fbbf24"},{l:"Potentiel contenu",s:da.content_potential_score,c:"#c084fc"}].map((x,i)=><div key={i} className="flex-1"><div className="flex justify-between mb-1"><span className="text-[10px] text-gray-500">{x.l}</span><span className="text-[10px] font-extrabold" style={{color:x.c}}>{x.s}/10</span></div><div className="h-1 bg-white/5 rounded-sm"><div className="h-1 rounded-sm transition-all duration-500" style={{width:`${(x.s||0)*10}%`,background:x.c}}/></div></div>)}</div></div>
-
+ 
             <div className="mb-5 flex flex-wrap gap-1">{(da.tags||[]).map((t,i)=><span key={i} className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white/[0.06] text-gray-500">#{t}</span>)}</div>
-
+ 
             <div className="border-t border-white/[0.06] pt-4">
               <SecHead color="#888">Générer du contenu</SecHead>
               <div className="flex gap-2 flex-wrap">
@@ -361,12 +364,12 @@ export default function Dashboard() {
       </div>
     );
   };
-
+ 
   const VKnow = () => (
     <div>
       <h1 className="text-2xl font-extrabold tracking-tight mb-1">Base de connaissances</h1>
       <p className="text-gray-500 text-sm mb-5">{articles.length} article{articles.length!==1?"s":""} — {filtered.length} affiché{filtered.length!==1?"s":""}</p>
-
+ 
       {/* Keyword Search Bar - instant */}
       <div className="mb-4">
         <div className="relative">
@@ -380,12 +383,12 @@ export default function Dashboard() {
           {kwSearch && <button onClick={()=>setKwSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 border-none bg-transparent cursor-pointer"><IC.x s={14}/></button>}
         </div>
       </div>
-
+ 
       {/* Category Filter */}
       <div className="flex gap-1.5 flex-wrap mb-4">
         {["Tous",...CATS].map(c=><button key={c} onClick={()=>setFilterCat(c)} className="px-3 py-1 rounded-lg border-none cursor-pointer text-[11px] font-bold transition-all" style={{background:filterCat===c?`${CC[c]||"#00d4aa"}22`:"rgba(255,255,255,0.04)",color:filterCat===c?(CC[c]||"#00d4aa"):"#777"}}>{c} {c!=="Tous"&&`(${articles.filter(a=>a.category===c).length})`}</button>)}
       </div>
-
+ 
       {/* Results */}
       {filtered.length>0?filtered.map(a=>(
         <CardH key={a.id} onClick={()=>{setSelArticle(a);setView("brief");}}>
@@ -397,7 +400,7 @@ export default function Dashboard() {
               </div>
               <h4 className="text-sm font-bold mb-1">{a.title}</h4>
               <p className="text-xs text-gray-500 leading-relaxed mb-2">{a.summary_one_line}</p>
-
+ 
               {/* Show matching insights when searching */}
               {kwSearch.trim() && (a.actionable_insights||[]).filter(ins => ins.toLowerCase().includes(kwSearch.toLowerCase())).length > 0 && (
                 <div className="mb-2">
@@ -407,14 +410,14 @@ export default function Dashboard() {
                   })}
                 </div>
               )}
-
+ 
               {/* Show key takeaway when searching */}
               {kwSearch.trim() && a.one_key_takeaway && a.one_key_takeaway.toLowerCase().includes(kwSearch.toLowerCase()) && (
                 <div className="px-2 py-1 bg-sky-400/[0.06] border-l-2 border-sky-400 rounded-r-md mb-2">
                   <p className="text-[10px] text-sky-400 leading-relaxed">💎 {a.one_key_takeaway}</p>
                 </div>
               )}
-
+ 
               <div className="flex flex-wrap gap-1">
                 {(a.tags||[]).slice(0,5).map((t,i)=><span key={i} className={`px-1.5 py-0.5 rounded text-[10px] font-semibold bg-white/[0.06] ${kwSearch.trim() && t.toLowerCase().includes(kwSearch.toLowerCase()) ? "text-accent bg-accent/10" : "text-gray-500"}`}>#{t}</span>)}
               </div>
@@ -429,7 +432,7 @@ export default function Dashboard() {
           </div>
         </CardH>
       )):<div className="text-center py-10 text-gray-600">{kwSearch.trim() ? `Aucun résultat pour "${kwSearch}"` : "Aucun article"}</div>}
-
+ 
       {/* AI Deep Search - secondary */}
       <Card className="mt-6">
         <div className="flex items-center gap-1.5 text-[11px] font-bold text-accent uppercase tracking-widest mb-3"><IC.chat s={14} c="#00d4aa"/> Recherche IA profonde</div>
@@ -447,7 +450,7 @@ export default function Dashboard() {
       </Card>
     </div>
   );
-
+ 
   const VContent = () => {
     const expl = articles.filter(a=>a.exploited), unex = articles.filter(a=>!a.exploited);
     return (
@@ -460,7 +463,7 @@ export default function Dashboard() {
       </div>
     );
   };
-
+ 
   const VYouTube = () => {
     const toggle = id => setYtSel(p => p.includes(id) ? p.filter(x=>x!==id) : [...p, id]);
     const cg = {}; articles.forEach(a => { if(!cg[a.category]) cg[a.category]=[]; cg[a.category].push(a); });
@@ -492,7 +495,7 @@ export default function Dashboard() {
       </div>
     );
   };
-
+ 
   const VConn = () => {
     const cg = {}; articles.forEach(a => { if(!cg[a.category]) cg[a.category]=[]; cg[a.category].push(a); });
     return (
@@ -503,10 +506,10 @@ export default function Dashboard() {
       </div>
     );
   };
-
+ 
   const views = {capture:VCapture,brief:VBrief,knowledge:VKnow,content:VContent,youtube:VYouTube,connections:VConn};
   const navs = [{k:"capture",l:"Capture",i:IC.plus},{k:"brief",l:"Brief",i:IC.clip},{k:"knowledge",l:"Knowledge",i:IC.book},{k:"content",l:"Content Lab",i:IC.pen},{k:"youtube",l:"YouTube",i:IC.film},{k:"connections",l:"Connexions",i:IC.globe}];
-
+ 
   return (
     <div className="min-h-screen bg-bg text-gray-200">
       <header className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06] bg-bg/95 backdrop-blur-xl sticky top-0 z-50">
@@ -520,3 +523,4 @@ export default function Dashboard() {
     </div>
   );
 }
+ 
