@@ -3,6 +3,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createServerClient } from "@/lib/supabase-server";
 import { PROMPT_SEARCH } from "@/lib/prompts";
 
+export const maxDuration = 60;
+
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(req) {
@@ -14,7 +16,6 @@ export async function POST(req) {
 
     const supabase = createServerClient();
 
-    // Fetch all articles for context
     const { data: articles } = await supabase
       .from("articles")
       .select("id, title, category, tags, summary_one_line, summary_paragraph, actionable_insights, contrarian_take, one_key_takeaway, golden_nuggets, mental_models")
@@ -22,15 +23,15 @@ export async function POST(req) {
       .limit(200);
 
     const kb = (articles || []).map(a => {
-      const nuggets = (a.golden_nuggets || []).map(n => n.title || n.idea || "").join(", ");
-      return `[ID:${a.id}] ${a.title} | Cat: ${a.category} | Tags: ${(a.tags || []).join(",")} | ${a.summary_one_line} | Insights: ${(a.actionable_insights || []).join("; ")} | Contrarian: ${a.contrarian_take || ""} | Takeaway: ${a.one_key_takeaway || ""} | Pépites: ${nuggets}`;
+      const nuggets = (Array.isArray(a.golden_nuggets) ? a.golden_nuggets : []).map(n => (n.title||"")).join(", ");
+      return "[ID:" + a.id + "] " + (a.title||"") + " | Cat: " + (a.category||"") + " | Tags: " + (Array.isArray(a.tags) ? a.tags.join(",") : "") + " | " + (a.summary_one_line||"") + " | Takeaway: " + (a.one_key_takeaway||"") + " | Pépites: " + nuggets;
     }).join("\n\n");
 
     const msg = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 2000,
       system: PROMPT_SEARCH,
-      messages: [{ role: "user", content: `Base:\n${kb}\n\nRecherche: ${query}` }],
+      messages: [{ role: "user", content: "Base:\n" + kb + "\n\nRecherche: " + query }],
     });
 
     const answer = msg.content[0]?.text || "";
