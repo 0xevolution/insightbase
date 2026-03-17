@@ -331,19 +331,21 @@ export default function Dashboard() {
               <SecHead color="#c084fc">⚡ Insights actionnables</SecHead>
               <div className="flex flex-col gap-1.5">
                 {(da.actionable_insights||[]).map((ins,i) => {
-                  const c = ins.startsWith("FAIRE")?"#00d4aa":ins.startsWith("TESTER")?"#fbbf24":ins.startsWith("ÉVITER")?"#f87171":"#c084fc";
-                  return <div key={i} className="flex items-start gap-2 px-3 py-2 rounded-r-lg" style={{background:`${c}08`,borderLeft:`3px solid ${c}`}}><span className="text-xs leading-relaxed text-gray-300">{ins}</span></div>;
+                  const s = typeof ins === "string" ? ins : JSON.stringify(ins);
+                  const c = s.startsWith("FAIRE")?"#00d4aa":s.startsWith("TESTER")?"#fbbf24":s.startsWith("ÉVITER")?"#f87171":"#c084fc";
+                  return <div key={i} className="flex items-start gap-2 px-3 py-2 rounded-r-lg" style={{background:`${c}08`,borderLeft:`3px solid ${c}`}}><span className="text-xs leading-relaxed text-gray-300">{s}</span></div>;
                 })}
               </div>
             </div>
 
-            {(da.mental_models||[]).length>0 && <div className="mb-5"><SecHead color="#fb923c">🧠 Modèles mentaux</SecHead>{da.mental_models.map((m,i)=><div key={i} className="px-3 py-2 bg-orange-500/[0.06] rounded-lg mb-1 text-xs text-gray-300 leading-relaxed">{m}</div>)}</div>}
+            {(da.mental_models||[]).length>0 && <div className="mb-5"><SecHead color="#fb923c">🧠 Modèles mentaux</SecHead>{da.mental_models.map((m,i)=><div key={i} className="px-3 py-2 bg-orange-500/[0.06] rounded-lg mb-1 text-xs text-gray-300 leading-relaxed">{typeof m === "string" ? m : JSON.stringify(m)}</div>)}</div>}
 
             {da.contrarian_take && <div className="mb-5"><SecHead color="#f472b6">🔄 Angle contrarian</SecHead><div className="px-4 py-3 bg-pink-400/[0.06] border-l-[3px] border-pink-400 rounded-r-lg"><p className="text-[13px] font-semibold text-pink-400 leading-relaxed">{da.contrarian_take}</p></div></div>}
 
             <div className="mb-5"><SecHead color="#38bdf8">💎 Takeaway principal</SecHead><div className="px-4 py-3.5 bg-gradient-to-r from-sky-400/[0.08] to-accent/[0.05] border-l-[3px] border-sky-400 rounded-r-xl"><p className="text-sm font-bold text-sky-400 leading-relaxed">{da.one_key_takeaway}</p></div></div>
 
-            {(da.content_angles||[]).length>0 && <div className="mb-5"><SecHead color="#a3e635">🎯 Angles de contenu</SecHead>{da.content_angles.map((a,i)=><div key={i} className="px-2.5 py-1.5 bg-lime-400/[0.06] rounded-md mb-1 text-[11px] text-gray-400 leading-relaxed">{a}</div>)}</div>}
+            {da.content_angles && typeof da.content_angles === "object" && !Array.isArray(da.content_angles) && Object.keys(da.content_angles).length>0 && <div className="mb-5"><SecHead color="#a3e635">🎯 Angles de contenu</SecHead>{Object.entries(da.content_angles).map(([platform,angles],i)=><div key={i} className="mb-2">{typeof angles === "object" ? Object.entries(angles).map(([k,v],j)=><div key={j} className="px-2.5 py-1.5 bg-lime-400/[0.06] rounded-md mb-1 text-[11px] text-gray-400 leading-relaxed"><span className="text-lime-400 font-bold">{platform}/{k}:</span> {String(v)}</div>) : <div className="px-2.5 py-1.5 bg-lime-400/[0.06] rounded-md mb-1 text-[11px] text-gray-400">{String(angles)}</div>}</div>)}</div>}
+            {da.content_angles && Array.isArray(da.content_angles) && da.content_angles.length>0 && <div className="mb-5"><SecHead color="#a3e635">🎯 Angles de contenu</SecHead>{da.content_angles.map((a,i)=><div key={i} className="px-2.5 py-1.5 bg-lime-400/[0.06] rounded-md mb-1 text-[11px] text-gray-400 leading-relaxed">{String(a)}</div>)}</div>}
 
             <div className="mb-5"><SecHead color="#888">Scores</SecHead><div className="flex gap-4">{[{l:"Nouveauté",s:da.novelty_score,c:"#00d4aa"},{l:"Actionnabilité",s:da.actionability_score,c:"#fbbf24"},{l:"Potentiel contenu",s:da.content_potential_score,c:"#c084fc"}].map((x,i)=><div key={i} className="flex-1"><div className="flex justify-between mb-1"><span className="text-[10px] text-gray-500">{x.l}</span><span className="text-[10px] font-extrabold" style={{color:x.c}}>{x.s}/10</span></div><div className="h-1 bg-white/5 rounded-sm"><div className="h-1 rounded-sm transition-all duration-500" style={{width:`${(x.s||0)*10}%`,background:x.c}}/></div></div>)}</div></div>
 
