@@ -17,13 +17,14 @@ export async function POST(req) {
     // Fetch all articles for context
     const { data: articles } = await supabase
       .from("articles")
-      .select("id, title, category, tags, summary_one_line, actionable_insights, contrarian_take")
+      .select("id, title, category, tags, summary_one_line, summary_paragraph, actionable_insights, contrarian_take, one_key_takeaway, golden_nuggets, mental_models")
       .order("created_at", { ascending: false })
       .limit(200);
 
-    const kb = (articles || []).map(a =>
-      `[ID:${a.id}] ${a.title} | Cat: ${a.category} | Tags: ${(a.tags || []).join(",")} | ${a.summary_one_line} | Insights: ${(a.actionable_insights || []).join("; ")} | Contrarian: ${a.contrarian_take || ""}`
-    ).join("\n\n");
+    const kb = (articles || []).map(a => {
+      const nuggets = (a.golden_nuggets || []).map(n => n.title || n.idea || "").join(", ");
+      return `[ID:${a.id}] ${a.title} | Cat: ${a.category} | Tags: ${(a.tags || []).join(",")} | ${a.summary_one_line} | Insights: ${(a.actionable_insights || []).join("; ")} | Contrarian: ${a.contrarian_take || ""} | Takeaway: ${a.one_key_takeaway || ""} | Pépites: ${nuggets}`;
+    }).join("\n\n");
 
     const msg = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
