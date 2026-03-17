@@ -80,7 +80,12 @@ export default function Dashboard() {
     if (!input.trim()) return;
     setLoading(true); setLoadMsg("L'IA analyse en profondeur...");
     try {
-      const res = await api("/api/digest", { content: input, inputType });
+      const isUrl = inputType === "url" && input.trim().startsWith("http");
+      const res = await api("/api/digest", {
+        content: input,
+        inputType: inputType === "texte" ? "text" : inputType,
+        sourceUrl: isUrl ? input.trim() : null,
+      });
       if (res.error) { showToast("Erreur : " + res.error); }
       else { await fetchArticles(); setSelArticle(res.article); setInput(""); setView("brief"); showToast("Article digéré !"); }
     } catch (e) { showToast("Erreur : " + e.message); }
@@ -189,36 +194,97 @@ export default function Dashboard() {
   // VIEWS
   // ══════════════════════════════════════════════════════════════
 
-  const VCapture = () => (
-    <div>
-      <h1 className="text-2xl font-extrabold tracking-tight mb-1">Capturer un article</h1>
-      <p className="text-gray-500 text-sm mb-5">Colle une URL, du texte brut ou le contenu d'un PDF</p>
-      <div className="flex gap-2 mb-4">
-        {[["url","🔗 URL"],["texte","📝 Texte"],["pdf","📄 PDF"]].map(([k,l])=>
-          <button key={k} onClick={()=>setInputType(k)} className={`px-3.5 py-1.5 rounded-lg border-none cursor-pointer text-xs font-bold transition-all ${inputType===k?"bg-accent text-bg":"bg-white/5 text-gray-500"}`}>{l}</button>
+  const VCapture = () => {
+    const [dragOver, setDragOver] = useState(false);
+
+    const handlePdfFile = async (file) => {
+      if (!file || file.type !== "application/pdf") {
+        showToast("Seuls les fichiers PDF sont acceptés");
+        return;
+      }
+      setInputType("pdf");
+      setLoadMsg("Extraction du PDF...");
+      setLoading(true);
+      try {
+        // Use pdf.js CDN to extract text
+        const pdfjsLib = await import("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs";
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let text = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map(item => item.str).join(" ") + "\n\n";
+        }
+        setInput(text.trim());
+        showToast(`PDF extrait : ${file.name} (${pdf.numPages} pages)`);
+      } catch (e) {
+        showToast("Erreur extraction PDF : " + e.message);
+      }
+      setLoading(false);
+    };
+
+    const handleDrop = (e) => {
+      e.preventDefault();
+      setDragOver(false);
+      const file = e.dataTransfer.files[0];
+      handlePdfFile(file);
+    };
+
+    const handleFileInput = (e) => {
+      const file = e.target.files[0];
+      handlePdfFile(file);
+    };
+
+    return (
+      <div>
+        <h1 className="text-2xl font-extrabold tracking-tight mb-1">Capturer un article</h1>
+        <p className="text-gray-500 text-sm mb-5">Colle une URL, du texte brut, ou glisse un PDF</p>
+        <div className="flex gap-2 mb-4">
+          {[["url","🔗 URL"],["text","📝 Texte"],["pdf","📄 PDF"]].map(([k,l])=>
+            <button key={k} onClick={()=>setInputType(k)} className={`px-3.5 py-1.5 rounded-lg border-none cursor-pointer text-xs font-bold transition-all ${inputType===k?"bg-accent text-bg":"bg-white/5 text-gray-500"}`}>{l}</button>
+          )}
+        </div>
+
+        {/* PDF Drag & Drop Zone */}
+        {inputType === "pdf" && !input && (
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            className={`border-2 border-dashed rounded-2xl p-10 mb-4 text-center transition-all cursor-pointer ${dragOver ? "border-accent bg-accent/5" : "border-white/10 bg-white/[0.02]"}`}
+            onClick={() => document.getElementById("pdf-input")?.click()}
+          >
+            <p className="text-3xl mb-3">📄</p>
+            <p className="text-sm font-bold text-gray-300">{dragOver ? "Lâche le fichier ici" : "Glisse ton PDF ici"}</p>
+            <p className="text-xs text-gray-600 mt-1">ou clique pour sélectionner un fichier</p>
+            <input id="pdf-input" type="file" accept=".pdf" onChange={handleFileInput} className="hidden" />
+          </div>
+        )}
+
+        <Card>
+          <textarea value={input} onChange={e=>setInput(e.target.value)} placeholder={inputType==="url"?"https://...":inputType==="pdf"?"Le texte du PDF apparaîtra ici après extraction...":"Colle le contenu ici..."} className="w-full min-h-[130px] p-3.5 bg-white/5 border border-white/10 rounded-xl text-gray-200 text-sm outline-none resize-y font-sans" />
+          <div className="flex justify-between items-center mt-3.5">
+            <span className="text-xs text-gray-600">{input.length} chars {input.trim() && `· ~${input.trim().split(/\s+/).length} mots`}</span>
+            <Btn onClick={digest} disabled={loading||!input.trim()} className={loading||!input.trim()?"opacity-50":""}>{loading?<><IC.load s={14}/> {loadMsg}</>:<><IC.zap s={14}/> Digérer</>}</Btn>
+          </div>
+        </Card>
+        {articles.length>0 && (
+          <div className="mt-6">
+            <h3 className="text-[15px] font-bold mb-3">Derniers articles</h3>
+            {articles.slice(0,3).map(a=>(
+              <CardH key={a.id} onClick={()=>{setSelArticle(a);setView("brief");}}>
+                <Badge cat={a.category}/>
+                <h4 className="text-sm font-bold mt-1.5 mb-1">{a.title}</h4>
+                <p className="text-xs text-gray-500 leading-relaxed">{a.summary_one_line}</p>
+              </CardH>
+            ))}
+          </div>
         )}
       </div>
-      <Card>
-        <textarea value={input} onChange={e=>setInput(e.target.value)} placeholder={inputType==="url"?"https://...":"Colle le contenu ici..."} className="w-full min-h-[130px] p-3.5 bg-white/5 border border-white/10 rounded-xl text-gray-200 text-sm outline-none resize-y font-sans" />
-        <div className="flex justify-between items-center mt-3.5">
-          <span className="text-xs text-gray-600">{input.length} chars</span>
-          <Btn onClick={digest} disabled={loading||!input.trim()} className={loading||!input.trim()?"opacity-50":""}>{loading?<><IC.load s={14}/> {loadMsg}</>:<><IC.zap s={14}/> Digérer</>}</Btn>
-        </div>
-      </Card>
-      {articles.length>0 && (
-        <div className="mt-6">
-          <h3 className="text-[15px] font-bold mb-3">Derniers articles</h3>
-          {articles.slice(0,3).map(a=>(
-            <CardH key={a.id} onClick={()=>{setSelArticle(a);setView("brief");}}>
-              <Badge cat={a.category}/>
-              <h4 className="text-sm font-bold mt-1.5 mb-1">{a.title}</h4>
-              <p className="text-xs text-gray-500 leading-relaxed">{a.summary_one_line}</p>
-            </CardH>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   const VBrief = () => {
     const da = selArticle || articles[0];
