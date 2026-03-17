@@ -6,7 +6,7 @@ import { PROMPT_X, PROMPT_LINKEDIN, PROMPT_NEWSLETTER } from "@/lib/prompts";
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const PROMPTS = { x: PROMPT_X, linkedin: PROMPT_LINKEDIN, newsletter: PROMPT_NEWSLETTER };
-const FIELDS = { x: "content_x", linkedin: "content_linkedin", newsletter: "content_newsletter" };
+const TABLES = { x: "content_x", linkedin: "content_linkedin", newsletter: "content_newsletter" };
 
 export async function POST(req) {
   try {
@@ -28,7 +28,7 @@ export async function POST(req) {
       return NextResponse.json({ error: "Article non trouvé" }, { status: 404 });
     }
 
-    // Build context - handle both V1 (array) and V2 (object) content_angles
+    // Build context — handle both V1 and V3 content_angles
     const angles = article.content_angles;
     let anglesStr = "N/A";
     if (Array.isArray(angles)) {
@@ -39,15 +39,19 @@ export async function POST(req) {
       if (platformAngles && typeof platformAngles === "object") {
         anglesStr = Object.entries(platformAngles).map(([k, v]) => `${k}: ${v}`).join(" | ");
       } else {
-        anglesStr = Object.entries(angles).map(([k, v]) => typeof v === "object" ? Object.values(v).join(" / ") : v).join(" | ");
+        anglesStr = Object.entries(angles).map(([k, v]) =>
+          typeof v === "object" ? Object.values(v).join(" / ") : v
+        ).join(" | ");
       }
     }
 
-    // Build golden nuggets string if available
+    // Build golden nuggets string
     const nuggets = article.golden_nuggets;
     let nuggetsStr = "";
     if (Array.isArray(nuggets) && nuggets.length > 0) {
-      nuggetsStr = nuggets.map((n, i) => `Pépite ${i+1}: ${n.title || ""} — ${n.idea || ""} (${n.why_powerful || ""})`).join("\n");
+      nuggetsStr = nuggets.map((n, i) =>
+        `Pépite ${i + 1}: ${n.title || ""} — ${n.idea || ""} (${n.why_powerful || ""})`
+      ).join("\n");
     }
 
     const ctx = [
@@ -65,7 +69,7 @@ export async function POST(req) {
       `Angles contenu (${platform}): ${anglesStr}`,
     ].filter(Boolean).join("\n");
 
-    // Generate
+    // Generate content
     const msg = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 4000,
@@ -75,10 +79,25 @@ export async function POST(req) {
 
     const generatedContent = msg.content[0]?.text || "";
 
-    // Save to DB
+    // Save to dedicated platform table as JSON
+    const tableName = TABLES[platform];
+    await supabase.from(tableName).insert({
+      article_id: articleId,
+      content: {
+        platform: platform,
+        generated_at: new Date().toISOString(),
+        article_title: article.title,
+        article_category: article.category,
+        raw_output: generatedContent,
+      },
+      raw_text: generatedContent,
+      status: "generated",
+    });
+
+    // Also mark article as exploited
     await supabase
       .from("articles")
-      .update({ [FIELDS[platform]]: generatedContent, exploited: true })
+      .update({ exploited: true })
       .eq("id", articleId);
 
     return NextResponse.json({ content: generatedContent });
