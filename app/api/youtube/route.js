@@ -10,49 +10,35 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 export async function POST(req) {
   try {
     const { topic, articleIds } = await req.json();
-
     const supabase = createServerClient();
 
-    let query = supabase.from("articles").select("*").order("created_at", { ascending: false });
-    if (articleIds?.length > 0) {
-      query = query.in("id", articleIds);
-    } else {
-      query = query.limit(20);
-    }
+    let q = supabase.from("articles").select("*").order("created_at", { ascending: false });
+    if (articleIds?.length > 0) q = q.in("id", articleIds); else q = q.limit(20);
+    const { data: articles } = await q;
 
-    const { data: articles } = await query;
-
-    const artContext = (articles || []).map(a => {
-      const nuggets = (Array.isArray(a.golden_nuggets) ? a.golden_nuggets : []).map(n => "- " + (n.title||"") + ": " + (n.idea||"")).join("\n");
-      return "=== ARTICLE: " + (a.title||"") + " ===\nCatégorie: " + (a.category||"") + "\nRésumé: " + (a.summary_full||"") + "\nInsights: " + (Array.isArray(a.actionable_insights) ? a.actionable_insights.join(" | ") : "") + "\nTakeaway: " + (a.one_key_takeaway||"") + "\nPépites:\n" + nuggets;
+    const s = (v) => (typeof v === "string" ? v : "");
+    const ctx = (articles || []).map(a => {
+      const nuggets = (Array.isArray(a.golden_nuggets) ? a.golden_nuggets : []).map(n => "- " + (n?.title||"") + ": " + (n?.idea||"")).join("\n");
+      return "=== " + s(a.title) + " ===\n" + s(a.summary_full) + "\nInsights: " + (Array.isArray(a.actionable_insights) ? a.actionable_insights.join(" | ") : "") + "\nTakeaway: " + s(a.one_key_takeaway) + "\n" + nuggets;
     }).join("\n\n");
 
-    const userMsg = topic?.trim()
-      ? "Sujet demandé : \"" + topic + "\"\n\nArticles sources :\n\n" + artContext
-      : "Crée un script en synthétisant ces articles :\n\n" + artContext;
+    const userMsg = topic?.trim() ? "Sujet: \"" + topic + "\"\n\nSources:\n\n" + ctx : "Synthétise:\n\n" + ctx;
 
     const msg = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 8000,
-      system: PROMPT_YOUTUBE,
+      model: "claude-sonnet-4-20250514", max_tokens: 8000, system: PROMPT_YOUTUBE,
       messages: [{ role: "user", content: userMsg }],
     });
-
     const script = msg.content[0]?.text || "";
 
-    const { data } = await supabase.from("youtube_scripts").insert({
-      topic: topic || "Script auto-généré",
-      article_ids: articleIds || [],
-      content: {
-        topic: topic || "Auto-généré",
-        article_count: (articleIds || []).length,
-        generated_at: new Date().toISOString(),
-      },
-      raw_text: script,
-      status: "generated",
-    }).select().single();
+    try {
+      await supabase.from("youtube_scripts").insert({
+        topic: topic || "Auto-généré", article_ids: articleIds || [],
+        raw_text: script, status: "generated",
+        content: { topic: topic || "Auto", generated_at: new Date().toISOString() },
+      });
+    } catch {}
 
-    return NextResponse.json({ script, saved: data });
+    return NextResponse.json({ script });
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
