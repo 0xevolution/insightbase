@@ -1,40 +1,42 @@
-export const runtime = "edge";
+import { NextResponse } from "next/server";
+import { createServerClient } from "@/lib/supabase-server";
 
-const PROMPT = `Tu es un expert en synthèse et extraction de valeur. Analyse le contenu fourni et retourne UNIQUEMENT un JSON valide (pas de markdown, pas de backticks, pas de texte autour).
+export const maxDuration = 60;
+
+const PROMPT = `Expert en synthèse et extraction de valeur. Analyse le contenu et retourne UNIQUEMENT un JSON valide, sans backticks, sans markdown.
 
 Détecte le type : A (actionnable), B (théorique), C (mixte).
 
-JSON exact à retourner :
 {
   "title": "Titre clair",
-  "source": "Source si détectable",
+  "source": "Source si détectable ou null",
   "content_type": "A|B|C",
   "summary_one_line": "Idée centrale en 1 phrase percutante",
-  "summary_paragraph": "Contexte et problème en 100-200 mots, texte fluide",
-  "summary_full": "Substance principale, 5-10 points développés de 2-3 lignes chacun",
-  "golden_nuggets": [{"title":"Titre","idea":"Développement 2-3 lignes","why_powerful":"Pourquoi important","explicit_vs_implied":"Dit vs impliqué"}],
-  "data_evidence": [{"fact":"Donnée exacte","what_it_proves":"Implication","reliability":"Fort|Moyen|Anecdotique"}],
-  "actionable_insights": ["FAIRE : Action concrète","TESTER : Hypothèse","ÉVITER : Erreur"],
-  "perspective_shifts": ["Shift mental si TYPE B ou C"],
-  "mental_models": ["NOM : Application"],
-  "contrarian_take": "Angle contre-intuitif, 2 phrases",
+  "summary_paragraph": "Contexte et problème en 100-200 mots fluides",
+  "summary_full": "Substance principale, 5-10 points de 2-3 lignes",
+  "golden_nuggets": [{"title":"Titre","idea":"2-3 lignes","why_powerful":"Pourquoi important","explicit_vs_implied":"Dit vs impliqué"}],
+  "data_evidence": [{"fact":"Donnée","what_it_proves":"Implication","reliability":"Fort|Moyen|Anecdotique"}],
+  "actionable_insights": ["FAIRE: Action concrète","TESTER: Hypothèse","ÉVITER: Erreur"],
+  "perspective_shifts": ["Shift mental si B ou C"],
+  "mental_models": ["NOM: Application"],
+  "contrarian_take": "Angle contre-intuitif 2 phrases",
   "blind_spots": "Limites du contenu",
   "key_concepts": ["Concept1","Concept2","Concept3"],
-  "category": "UNE parmi: IA,Business,Mindset,Vibecoding,Outils,Tendances,Dev Personnel,Trading,Marketing,Science",
+  "category": "IA|Business|Mindset|Vibecoding|Outils|Tendances|Dev Personnel|Trading|Marketing|Science",
   "tags": ["tag1","tag2","tag3","tag4","tag5"],
   "novelty_score": 7,
   "actionability_score": 7,
   "content_potential_score": 7,
-  "one_key_takeaway": "Vérité centrale, 2 phrases",
+  "one_key_takeaway": "Vérité centrale 2 phrases",
   "content_angles": {"x_twitter":{"opinion_tranchee":"","fait_contre_intuitif":"","tension_narrative":""},"linkedin":{"lecon_pro":"","moment_rupture":"","prise_position":""},"newsletter":{"insight_profond":"","pont_realite":"","question_ouverte":""},"youtube":{"hook_video":"","preuve_credibilite":"","transformation":""}},
   "final_rating": "Publication immédiate|Publication avec reformulation|Usage interne|Ne pas utiliser"
 }
 
-Règles : zéro remplissage, chiffres exacts, scores honnêtes, ne commence JAMAIS par "Cet article parle de".`;
+Zéro remplissage. Chiffres exacts. Scores honnêtes. Réponds UNIQUEMENT avec le JSON.`;
 
-function trim(content) {
-  if (content.length <= 8000) return content;
-  return content.substring(0, 6500) + "\n\n[..." + content.length + " chars...]\n\n" + content.substring(content.length - 1500);
+function trim(text) {
+  if (text.length <= 8000) return text;
+  return text.substring(0, 6500) + "\n[..." + text.length + " chars total]\n" + text.substring(text.length - 1500);
 }
 
 export async function POST(req) {
@@ -43,14 +45,14 @@ export async function POST(req) {
     const content = body?.content;
     const inputType = body?.inputType;
 
-    if (!content || typeof content !== "string" || !content.trim()) {
-      return Response.json({ error: "Contenu vide" }, { status: 400 });
+    if (!content || typeof content !== "string" || content.trim().length < 10) {
+      return NextResponse.json({ error: "Contenu vide ou trop court" }, { status: 400 });
     }
 
     const prepared = trim(content.trim());
     const start = Date.now();
 
-    // Call Claude
+    // Call Claude via direct fetch (faster than SDK)
     const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -67,46 +69,54 @@ export async function POST(req) {
     });
 
     if (!aiRes.ok) {
-      return Response.json({ error: "Claude: " + aiRes.status }, { status: 500 });
+      const errBody = await aiRes.text().catch(() => "");
+      return NextResponse.json({ error: "Claude API " + aiRes.status + ": " + errBody.substring(0, 100) }, { status: 500 });
     }
 
     const aiData = await aiRes.json();
     const raw = aiData?.content?.[0]?.text || "";
-    if (!raw) return Response.json({ error: "Pas de réponse Claude" }, { status: 500 });
 
+    if (!raw || raw.length < 10) {
+      return NextResponse.json({ error: "Claude n'a pas répondu correctement" }, { status: 500 });
+    }
+
+    // Parse JSON — robust extraction
     let parsed;
     try {
       let c = raw.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-      const s = c.indexOf("{");
-      const e = c.lastIndexOf("}");
-      if (s >= 0 && e > s) c = c.substring(s, e + 1);
+      const openBrace = c.indexOf("{");
+      const closeBrace = c.lastIndexOf("}");
+      if (openBrace >= 0 && closeBrace > openBrace) {
+        c = c.substring(openBrace, closeBrace + 1);
+      }
       parsed = JSON.parse(c);
     } catch {
-      return Response.json({ error: "Erreur parsing JSON" }, { status: 500 });
+      return NextResponse.json({ error: "Erreur parsing JSON. Réessaie." }, { status: 500 });
     }
 
     const duration = Date.now() - start;
-    const cat = (typeof parsed.category === "string" && parsed.category) || "Business";
+    const cat = typeof parsed.category === "string" ? parsed.category : "Business";
     const ss = v => typeof v === "string" ? v : "";
     const sa = v => Array.isArray(v) ? v : [];
     const so = v => (v && typeof v === "object" && !Array.isArray(v)) ? v : {};
-    const sn = v => typeof v === "number" ? Math.min(Math.max(v,1),10) : 5;
+    const sn = v => typeof v === "number" ? Math.min(Math.max(Math.round(v), 1), 10) : 5;
 
     // Supabase
-    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-    const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+    const supabase = createServerClient();
 
+    // Category
     let catId = null;
     try {
-      const { data: existing } = await db.from("categories").select("id").eq("name", cat).maybeSingle();
-      if (existing) catId = existing.id;
+      const { data: ec } = await supabase.from("categories").select("id").eq("name", cat).maybeSingle();
+      if (ec) catId = ec.id;
       else {
-        const { data: nc } = await db.from("categories").insert({ name: cat, is_default: false }).select().single();
+        const { data: nc } = await supabase.from("categories").insert({ name: cat, is_default: false }).select().single();
         if (nc) catId = nc.id;
       }
     } catch {}
 
-    const { data: article, error: err } = await db.from("articles").insert({
+    // Insert article
+    const { data: article, error: dbErr } = await supabase.from("articles").insert({
       raw_input: content,
       input_type: typeof inputType === "string" ? inputType : "text",
       title: ss(parsed.title) || "Sans titre",
@@ -138,10 +148,12 @@ export async function POST(req) {
       digest_duration_ms: duration,
     }).select().single();
 
-    if (err) return Response.json({ error: "DB: " + err.message }, { status: 500 });
+    if (dbErr) {
+      return NextResponse.json({ error: "DB: " + dbErr.message }, { status: 500 });
+    }
 
-    return Response.json({ article });
+    return NextResponse.json({ article });
   } catch (e) {
-    return Response.json({ error: e?.message || "Erreur" }, { status: 500 });
+    return NextResponse.json({ error: e?.message || "Erreur serveur" }, { status: 500 });
   }
 }
