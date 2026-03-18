@@ -1,20 +1,52 @@
-import { NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
-import { createServerClient } from "@/lib/supabase-server";
-import { DIGEST_PROMPT } from "@/lib/prompts";
+export const runtime = "edge";
 
-export const maxDuration = 60;
-export const dynamic = "force-dynamic";
+import { createClient } from "@supabase/supabase-js";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+
+// Import prompt inline to avoid module issues in Edge
+const DIGEST_PROMPT = `Tu es un expert en synthèse, analyse critique et extraction de valeur de contenu. Ton rôle : transformer n'importe quel article, PDF, thread, livre ou document en une synthèse puissante, structurée et maximalement utile.
+
+ÉTAPE 0 — DÉTECTION AUTOMATIQUE DU TYPE DE CONTENU
+Analyse le contenu et classe-le : TYPE A (actionnable), TYPE B (théorique), TYPE C (mixte). Cette classification calibre ta réponse.
+
+RÈGLES : Zéro remplissage. Français clair et direct. Ne résume pas : ANALYSE et EXTRAIS. Les chiffres et exemples du document doivent apparaître. Ne génère JAMAIS de contenu inventé.
+
+Retourne UNIQUEMENT un JSON valide (sans markdown, sans backticks) :
+
+{
+  "title": "Titre clair et mémorable",
+  "source": "Source si détectable",
+  "content_type": "A | B | C",
+  "summary_one_line": "L'idée centrale en 1 phrase. Le so what essentiel.",
+  "summary_paragraph": "Contexte et problème adressé en 150-250 mots. Texte fluide.",
+  "summary_full": "Substance principale. 6-12 points développés, 2-4 lignes chacun.",
+  "golden_nuggets": [{"title": "Titre insight", "idea": "Développement 3-5 lignes", "why_powerful": "Pourquoi important", "explicit_vs_implied": "Dit vs impliqué"}],
+  "data_evidence": [{"fact": "Donnée exacte", "what_it_proves": "Implication", "reliability": "Fort|Moyen|Anecdotique"}],
+  "actionable_insights": ["FAIRE : Action concrète + comment + pourquoi", "TESTER : Hypothèse + méthode", "ÉVITER : Erreur + piège"],
+  "perspective_shifts": ["Shift mental si TYPE B ou C"],
+  "mental_models": ["NOM : Application ici"],
+  "contrarian_take": "Angle contre-intuitif en 2 phrases max",
+  "blind_spots": "Ce que le contenu ne dit pas. Limites et biais.",
+  "key_concepts": ["Concept 1", "Concept 2", "Concept 3"],
+  "category": "UNE parmi : IA, Business, Mindset, Vibecoding, Outils, Tendances, Dev Personnel, Trading, Marketing, Science",
+  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
+  "novelty_score": 7,
+  "actionability_score": 7,
+  "content_potential_score": 7,
+  "one_key_takeaway": "La vérité centrale à retenir. 2-3 phrases.",
+  "content_angles": {"x_twitter": {"opinion_tranchee": "", "fait_contre_intuitif": "", "tension_narrative": ""}, "linkedin": {"lecon_pro": "", "moment_rupture": "", "prise_position": ""}, "newsletter": {"insight_profond": "", "pont_realite": "", "question_ouverte": ""}, "youtube": {"hook_video": "", "preuve_credibilite": "", "transformation": ""}},
+  "final_rating": "Publication immédiate | Publication avec reformulation | Usage interne | Ne pas utiliser"
+}
+
+Scores HONNÊTES. Zéro remplissage. Chaque ligne justifie sa présence.`;
 
 function prepareContent(content) {
-  // Limit to 15000 chars to ensure Claude responds within 60s
-  const maxChars = 15000;
-  if (content.length <= maxChars) return content;
-  const first = content.substring(0, 12000);
-  const last = content.substring(content.length - 3000);
-  return first + "\n\n[... contenu central omis pour traitement — " + content.length + " caractères au total ...]\n\n" + last;
+  const max = 15000;
+  if (content.length <= max) return content;
+  return content.substring(0, 12000) + "\n\n[..." + content.length + " chars total...]\n\n" + content.substring(content.length - 3000);
 }
 
 export async function POST(req) {
@@ -24,108 +56,110 @@ export async function POST(req) {
     const inputType = body?.inputType;
 
     if (!content || typeof content !== "string" || !content.trim()) {
-      return NextResponse.json({ error: "Contenu vide" }, { status: 400 });
+      return new Response(JSON.stringify({ error: "Contenu vide" }), { status: 400, headers: { "Content-Type": "application/json" } });
     }
 
-    const supabase = createServerClient();
-    const startTime = Date.now();
     const prepared = prepareContent(content.trim());
+    const startTime = Date.now();
 
-    // 1. Call Claude with limited content for speed
-    let msg;
-    try {
-      msg = await anthropic.messages.create({
+    // Call Claude via fetch (Edge compatible)
+    const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
         max_tokens: 4096,
         system: DIGEST_PROMPT,
         messages: [{ role: "user", content: prepared }],
-      });
-    } catch (aiErr) {
-      return NextResponse.json({ error: "Erreur API Claude: " + (aiErr.message || "timeout") }, { status: 500 });
+      }),
+    });
+
+    if (!aiRes.ok) {
+      const errText = await aiRes.text();
+      return new Response(JSON.stringify({ error: "Claude API error: " + aiRes.status + " " + errText.substring(0, 200) }), { status: 500, headers: { "Content-Type": "application/json" } });
     }
 
-    const rawText = msg?.content?.[0]?.text || "";
+    const aiData = await aiRes.json();
+    const rawText = aiData?.content?.[0]?.text || "";
     if (!rawText) {
-      return NextResponse.json({ error: "Claude n'a pas répondu." }, { status: 500 });
+      return new Response(JSON.stringify({ error: "Claude n'a pas répondu" }), { status: 500, headers: { "Content-Type": "application/json" } });
     }
 
+    // Parse JSON
     let parsed;
     try {
-      let cleaned = rawText;
-      // Remove markdown code blocks if present
-      if (cleaned.includes("```")) {
-        cleaned = cleaned.replace(/```json\s*/g, "").replace(/```\s*/g, "");
-      }
-      cleaned = cleaned.trim();
-      // Find the JSON object
-      const start = cleaned.indexOf("{");
-      const end = cleaned.lastIndexOf("}");
-      if (start !== -1 && end !== -1 && end > start) {
-        cleaned = cleaned.substring(start, end + 1);
-      }
+      let cleaned = rawText.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+      const s = cleaned.indexOf("{");
+      const e = cleaned.lastIndexOf("}");
+      if (s !== -1 && e > s) cleaned = cleaned.substring(s, e + 1);
       parsed = JSON.parse(cleaned);
-    } catch (parseErr) {
-      return NextResponse.json({ error: "Erreur parsing JSON. Réessaie.", detail: rawText.substring(0, 200) }, { status: 500 });
+    } catch {
+      return new Response(JSON.stringify({ error: "Erreur parsing. Réessaie." }), { status: 500, headers: { "Content-Type": "application/json" } });
     }
 
     const duration = Date.now() - startTime;
-    const catName = (typeof parsed.category === "string" && parsed.category) ? parsed.category : "Business";
+    const catName = (typeof parsed.category === "string" && parsed.category) || "Business";
+    const ss = (v) => (typeof v === "string" ? v : "");
+    const sa = (v) => (Array.isArray(v) ? v : []);
+    const so = (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : {});
+    const sn = (v) => (typeof v === "number" ? Math.min(Math.max(v, 1), 10) : 5);
 
-    // 2. Find or create category (non-blocking)
+    // Save to Supabase
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Find or create category
     let catId = null;
     try {
       const { data: cat } = await supabase.from("categories").select("id").eq("name", catName).maybeSingle();
-      if (cat) { catId = cat.id; }
+      if (cat) catId = cat.id;
       else {
         const { data: nc } = await supabase.from("categories").insert({ name: catName, is_default: false }).select().single();
         if (nc) catId = nc.id;
       }
     } catch {}
 
-    // 3. Save article — store FULL raw_input (not truncated)
-    const safeStr = (v) => (typeof v === "string" ? v : "");
-    const safeArr = (v) => (Array.isArray(v) ? v : []);
-    const safeObj = (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : {});
-    const safeNum = (v) => (typeof v === "number" ? Math.min(Math.max(v, 1), 10) : 5);
-
-    const { data: article, error: err } = await supabase.from("articles").insert({
+    const { data: article, error: dbErr } = await supabase.from("articles").insert({
       raw_input: content,
       input_type: (typeof inputType === "string") ? inputType : "text",
-      title: safeStr(parsed.title) || "Sans titre",
-      source: safeStr(parsed.source) || null,
+      title: ss(parsed.title) || "Sans titre",
+      source: ss(parsed.source) || null,
       category: catName,
       category_id: catId,
-      content_type: safeStr(parsed.content_type) || "C",
-      summary_one_line: safeStr(parsed.summary_one_line),
-      summary_paragraph: safeStr(parsed.summary_paragraph),
-      summary_full: safeStr(parsed.summary_full),
-      content_diagnostic: safeObj(parsed.content_diagnostic),
-      golden_nuggets: safeArr(parsed.golden_nuggets),
-      data_evidence: safeArr(parsed.data_evidence),
-      actionable_insights: safeArr(parsed.actionable_insights),
-      perspective_shifts: safeArr(parsed.perspective_shifts),
-      mental_models: safeArr(parsed.mental_models),
-      contrarian_take: safeStr(parsed.contrarian_take) || null,
-      blind_spots: safeStr(parsed.blind_spots) || null,
-      key_concepts: safeArr(parsed.key_concepts),
-      tags: safeArr(parsed.tags),
-      novelty_score: safeNum(parsed.novelty_score),
-      actionability_score: safeNum(parsed.actionability_score),
-      content_potential_score: safeNum(parsed.content_potential_score),
-      one_key_takeaway: safeStr(parsed.one_key_takeaway),
-      content_angles: safeObj(parsed.content_angles),
-      final_rating: safeStr(parsed.final_rating) || null,
+      content_type: ss(parsed.content_type) || "C",
+      summary_one_line: ss(parsed.summary_one_line),
+      summary_paragraph: ss(parsed.summary_paragraph),
+      summary_full: ss(parsed.summary_full),
+      content_diagnostic: so(parsed.content_diagnostic),
+      golden_nuggets: sa(parsed.golden_nuggets),
+      data_evidence: sa(parsed.data_evidence),
+      actionable_insights: sa(parsed.actionable_insights),
+      perspective_shifts: sa(parsed.perspective_shifts),
+      mental_models: sa(parsed.mental_models),
+      contrarian_take: ss(parsed.contrarian_take) || null,
+      blind_spots: ss(parsed.blind_spots) || null,
+      key_concepts: sa(parsed.key_concepts),
+      tags: sa(parsed.tags),
+      novelty_score: sn(parsed.novelty_score),
+      actionability_score: sn(parsed.actionability_score),
+      content_potential_score: sn(parsed.content_potential_score),
+      one_key_takeaway: ss(parsed.one_key_takeaway),
+      content_angles: so(parsed.content_angles),
+      final_rating: ss(parsed.final_rating) || null,
       digest_version: "v4",
       ai_model_used: "claude-sonnet-4",
       digest_duration_ms: duration,
     }).select().single();
 
-    if (err) {
-      return NextResponse.json({ error: "Erreur DB: " + err.message }, { status: 500 });
+    if (dbErr) {
+      return new Response(JSON.stringify({ error: "DB: " + dbErr.message }), { status: 500, headers: { "Content-Type": "application/json" } });
     }
 
-    return NextResponse.json({ article });
+    return new Response(JSON.stringify({ article }), { status: 200, headers: { "Content-Type": "application/json" } });
   } catch (e) {
-    return NextResponse.json({ error: "Erreur serveur: " + (e.message || "inconnue") }, { status: 500 });
+    return new Response(JSON.stringify({ error: e.message || "Erreur serveur" }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
 }
