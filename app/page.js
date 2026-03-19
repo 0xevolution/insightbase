@@ -96,11 +96,11 @@ export default function Dashboard() {
     setLoading(false);
   };
 
-  const genCont = async (art, plat) => {
+  const genCont = async (art, plat, angle) => {
     if (!art || !art.id) return;
     setGenPlat(plat); setGenLoad(true); setGenContent("");
     try {
-      const res = await api("/api/generate", { articleId: art.id, platform: plat });
+      const res = await api("/api/generate", { articleId: art.id, platform: plat, angle: angle || null });
       if (res.error) setGenContent("Erreur : " + str(res.error));
       else { setGenContent(str(res.content)); await fetchArticles(); }
     } catch (e) { setGenContent("Erreur : " + e.message); }
@@ -261,10 +261,38 @@ export default function Dashboard() {
 
           <div className="border-t border-white/[0.06] pt-4">
             <SecHead color="#888">Générer du contenu</SecHead>
-            <div className="flex gap-2 flex-wrap">
-              <Btn variant="ghost" onClick={()=>genCont(da,"x")}>𝕏 Tweet & Thread</Btn>
-              <Btn variant="ghost" onClick={()=>genCont(da,"linkedin")}>💼 LinkedIn</Btn>
-              <Btn variant="ghost" onClick={()=>genCont(da,"newsletter")}>📧 Newsletter</Btn>
+
+            <div className="mb-4">
+              <p className="text-xs font-bold text-gray-400 mb-2">𝕏 Twitter</p>
+              <div className="flex gap-1.5 flex-wrap">
+                <button onClick={()=>genCont(da,"x","polemique")} className="px-3 py-1.5 rounded-lg bg-white/[0.05] text-[11px] text-gray-400 border-none cursor-pointer hover:bg-white/[0.1] hover:text-gray-200 transition-all">🎯 Polémique</button>
+                <button onClick={()=>genCont(da,"x","data")} className="px-3 py-1.5 rounded-lg bg-white/[0.05] text-[11px] text-gray-400 border-none cursor-pointer hover:bg-white/[0.1] hover:text-gray-200 transition-all">📊 Data/Chiffres</button>
+                <button onClick={()=>genCont(da,"x","story")} className="px-3 py-1.5 rounded-lg bg-white/[0.05] text-[11px] text-gray-400 border-none cursor-pointer hover:bg-white/[0.1] hover:text-gray-200 transition-all">📖 Story</button>
+                <button onClick={()=>genCont(da,"x","actionnable")} className="px-3 py-1.5 rounded-lg bg-white/[0.05] text-[11px] text-gray-400 border-none cursor-pointer hover:bg-white/[0.1] hover:text-gray-200 transition-all">⚡ Actionnable</button>
+                <button onClick={()=>genCont(da,"x","contrarian")} className="px-3 py-1.5 rounded-lg bg-white/[0.05] text-[11px] text-gray-400 border-none cursor-pointer hover:bg-white/[0.1] hover:text-gray-200 transition-all">🔄 Contrarian</button>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-xs font-bold text-gray-400 mb-2">💼 LinkedIn</p>
+              <div className="flex gap-1.5 flex-wrap">
+                <button onClick={()=>genCont(da,"linkedin","storytelling")} className="px-3 py-1.5 rounded-lg bg-white/[0.05] text-[11px] text-gray-400 border-none cursor-pointer hover:bg-white/[0.1] hover:text-gray-200 transition-all">📖 Storytelling</button>
+                <button onClick={()=>genCont(da,"linkedin","framework")} className="px-3 py-1.5 rounded-lg bg-white/[0.05] text-[11px] text-gray-400 border-none cursor-pointer hover:bg-white/[0.1] hover:text-gray-200 transition-all">📊 Framework</button>
+                <button onClick={()=>genCont(da,"linkedin","contrarian")} className="px-3 py-1.5 rounded-lg bg-white/[0.05] text-[11px] text-gray-400 border-none cursor-pointer hover:bg-white/[0.1] hover:text-gray-200 transition-all">🔄 Contrarian</button>
+                <button onClick={()=>genCont(da,"linkedin","etude_cas")} className="px-3 py-1.5 rounded-lg bg-white/[0.05] text-[11px] text-gray-400 border-none cursor-pointer hover:bg-white/[0.1] hover:text-gray-200 transition-all">🔍 Étude de cas</button>
+                <button onClick={()=>genCont(da,"linkedin","lecon")} className="px-3 py-1.5 rounded-lg bg-white/[0.05] text-[11px] text-gray-400 border-none cursor-pointer hover:bg-white/[0.1] hover:text-gray-200 transition-all">🧠 Leçon perso</button>
+              </div>
+            </div>
+
+            <div className="mb-2">
+              <p className="text-xs font-bold text-gray-400 mb-2">📧 Newsletter</p>
+              <div className="flex gap-1.5 flex-wrap">
+                <button onClick={()=>genCont(da,"newsletter","deep_dive")} className="px-3 py-1.5 rounded-lg bg-white/[0.05] text-[11px] text-gray-400 border-none cursor-pointer hover:bg-white/[0.1] hover:text-gray-200 transition-all">🔍 Deep Dive</button>
+                <button onClick={()=>genCont(da,"newsletter","contrarian")} className="px-3 py-1.5 rounded-lg bg-white/[0.05] text-[11px] text-gray-400 border-none cursor-pointer hover:bg-white/[0.1] hover:text-gray-200 transition-all">🔄 Contrarian</button>
+                <button onClick={()=>genCont(da,"newsletter","actionnable")} className="px-3 py-1.5 rounded-lg bg-white/[0.05] text-[11px] text-gray-400 border-none cursor-pointer hover:bg-white/[0.1] hover:text-gray-200 transition-all">⚡ Actionnable</button>
+                <button onClick={()=>genCont(da,"newsletter","tendance")} className="px-3 py-1.5 rounded-lg bg-white/[0.05] text-[11px] text-gray-400 border-none cursor-pointer hover:bg-white/[0.1] hover:text-gray-200 transition-all">📈 Tendance</button>
+                <button onClick={()=>genCont(da,"newsletter","story")} className="px-3 py-1.5 rounded-lg bg-white/[0.05] text-[11px] text-gray-400 border-none cursor-pointer hover:bg-white/[0.1] hover:text-gray-200 transition-all">📖 Story</button>
+              </div>
             </div>
           </div>
         </Card>
