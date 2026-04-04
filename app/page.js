@@ -192,35 +192,41 @@ export default function Dashboard() {
         <div
           onDragOver={e=>{e.preventDefault();e.currentTarget.style.borderColor="#00d4aa";}}
           onDragLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.1)";}}
-          onDrop={e=>{
+          onDrop={async e=>{
             e.preventDefault();
             e.currentTarget.style.borderColor="rgba(255,255,255,0.1)";
             const file = e.dataTransfer.files[0];
-            if (file && file.type === "application/pdf") {
-              const reader = new FileReader();
-              reader.onload = () => {
-                try {
-                  const text = reader.result;
-                  const decoded = new TextDecoder("utf-8",{fatal:false}).decode(new Uint8Array(text));
-                  let extracted = "";
-                  const streams = decoded.match(/stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g) || [];
-                  for (const s of streams) {
-                    const clean = s.replace(/^stream[\r\n]+/,"").replace(/[\r\n]+endstream$/,"").replace(/[^\x20-\x7E\r\n]/g," ").replace(/\s+/g," ").trim();
-                    if (clean.length > 20) extracted += clean + "\n\n";
-                  }
-                  setInput(extracted.trim() || "Extraction automatique limitée. Copie-colle le contenu du PDF manuellement dans la zone texte.");
-                  setInputType("pdf");
-                  showToast("PDF chargé : " + file.name);
-                } catch { showToast("Erreur PDF. Copie-colle le contenu manuellement."); }
-              };
-              reader.readAsArrayBuffer(file);
-            } else { showToast("Seuls les fichiers PDF sont acceptés"); }
+            if (!file || file.type !== "application/pdf") { showToast("Seuls les fichiers PDF sont acceptés"); return; }
+            setLoading(true); setLoadMsg("Extraction du PDF...");
+            try {
+              const fd = new FormData(); fd.append("file", file);
+              const res = await fetch("/api/pdf-extract", { method: "POST", body: fd });
+              const data = await res.json();
+              if (data.error) { showToast("Erreur : " + data.error); }
+              else { setInput(data.text); setInputType("pdf"); showToast("PDF extrait : " + file.name + " (" + data.pages + " pages)"); }
+            } catch (err) { showToast("Erreur PDF : " + err.message); }
+            setLoading(false);
           }}
-          onClick={()=>{const i=document.createElement("input");i.type="file";i.accept=".pdf";i.onchange=e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=()=>{try{const d=new TextDecoder("utf-8",{fatal:false}).decode(new Uint8Array(r.result));let ex="";const st=d.match(/stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g)||[];for(const s of st){const c=s.replace(/^stream[\r\n]+/,"").replace(/[\r\n]+endstream$/,"").replace(/[^\x20-\x7E\r\n]/g," ").replace(/\s+/g," ").trim();if(c.length>20)ex+=c+"\n\n";}setInput(ex.trim()||"Copie-colle le contenu du PDF manuellement.");setInputType("pdf");showToast("PDF chargé : "+f.name);}catch{showToast("Erreur PDF");}};r.readAsArrayBuffer(f);}};i.click();}}
+          onClick={async ()=>{
+            const i = document.createElement("input"); i.type="file"; i.accept=".pdf";
+            i.onchange = async e => {
+              const f = e.target.files[0]; if (!f) return;
+              setLoading(true); setLoadMsg("Extraction du PDF...");
+              try {
+                const fd = new FormData(); fd.append("file", f);
+                const res = await fetch("/api/pdf-extract", { method: "POST", body: fd });
+                const data = await res.json();
+                if (data.error) { showToast("Erreur : " + data.error); }
+                else { setInput(data.text); setInputType("pdf"); showToast("PDF extrait : " + f.name + " (" + data.pages + " pages)"); }
+              } catch (err) { showToast("Erreur PDF : " + err.message); }
+              setLoading(false);
+            };
+            i.click();
+          }}
           className="border-2 border-dashed border-white/10 rounded-2xl p-10 mb-4 text-center cursor-pointer transition-all hover:border-white/20"
         >
           <p className="text-3xl mb-3">📄</p>
-          <p className="text-sm font-bold text-gray-300">Glisse ton PDF ici</p>
+          <p className="text-sm font-bold text-gray-300">{loading ? str(loadMsg) : "Glisse ton PDF ici"}</p>
           <p className="text-xs text-gray-600 mt-1">ou clique pour sélectionner un fichier</p>
         </div>
       )}
