@@ -3,52 +3,23 @@ import { createServerClient } from "@/lib/supabase-server";
 
 export const maxDuration = 60;
 
-const P = `Tu es un expert en synthèse et extraction de valeur de contenu. Transforme n'importe quel document en une analyse structurée, dense et maximalement utile.
+const P_TEXT = `Tu es un expert en synthèse et extraction de valeur de contenu. Transforme n'importe quel document en une analyse structurée, dense et maximalement utile.
 
-ÉTAPE 0 — DÉTECTION DU TYPE
+Classe silencieusement : TYPE A (actionnable) | TYPE B (théorique) | TYPE C (mixte).
+Règles : Zéro remplissage. Jamais inventé. Chiffres exacts. Scores honnêtes. Sections non applicables : null.
 
-Classe silencieusement le contenu avant tout :
+Retourne UNIQUEMENT un JSON valide (sans markdown, sans backticks) :
+{"title":"Titre clair","source":"Source ou null","content_type":"A|B|C","summary_one_line":"Idée centrale 1 phrase percutante","summary_paragraph":"Contexte + problème + proposition. 100-200 mots fluides.","summary_full":"Substance : 5-12 points de 2-4 lignes. TYPE A: étapes, données. TYPE B: concepts profonds.","golden_nuggets":[{"title":"Titre","idea":"3-4 lignes non-évident","explicit_vs_implied":"Dit vs impliqué"}],"data_evidence":[{"fact":"Donnée exacte","what_it_proves":"Implication","reliability":"Fort|Moyen|Anecdotique"}],"actionable_insights":["FAIRE: QUOI+COMMENT+POURQUOI","TESTER: Hypothèse","ÉVITER: Erreur"],"perspective_shifts":["Shift mental TYPE B/C"],"contrarian_take":"Angle contre-intuitif 1-2 phrases","blind_spots":"Limites, biais 2-3 lignes","key_concepts":["C1","C2","C3"],"category":"IA|Business|Mindset|Vibecoding|Outils|Tendances|Dev Personnel|Trading|Marketing|Science","tags":["t1","t2","t3","t4","t5"],"novelty_score":7,"actionability_score":7,"content_potential_score":7,"content_angles":{"x_twitter":"Hook viral","linkedin":"Leçon pro","newsletter":"Insight + question","youtube":"Problème 30s + avant/après"},"one_key_takeaway":"Vérité centrale 2-3 phrases","final_rating":"Publication immédiate|Publication avec reformulation|Usage interne|Ne pas utiliser"}`;
 
-TYPE A — ACTIONNABLE : guides, stratégies, how-to, études de cas → priorité : mécanismes + actions
-TYPE B — THÉORIQUE : philosophie, psychologie, essais, sciences → priorité : concepts + implications
-TYPE C — MIXTE : mélange théorie et application → priorité : équilibre
+const P_PDF = `Analyse et synthétise le contenu PDF ci-joint.
+Objectif : Extraire 100% de la valeur cognitive réelle en supprimant agressivement tout remplissage (anecdotes décoratives, répétitions, digressions, dramatisation).
+Mission : Synthèse plus courte mais intellectuellement équivalente. Conserver : toutes idées importantes, principes fondamentaux, concepts clés, modèles mentaux, méthodes actionnables, stratégies, distinctions, nuances utiles.
+Structure : Par sections logiques. Fusionner les redondances. Reformuler pour maximiser clarté.
+Contraintes : Aucune idée clé perdue. Aucun apprentissage sauté. Densité informationnelle maximale. Chaque phrase justifie sa présence.
+Le résultat doit permettre de ne jamais lire le document original tout en obtenant l'intégralité des apprentissages.
 
-RÈGLES ABSOLUES
-
-- Zéro remplissage. Chaque ligne justifie sa présence.
-- Jamais de contenu inventé : tout vient du document fourni.
-- Chiffres exacts (73%, pas "environ 70%").
-- Ne commence jamais par "Cet article parle de…".
-- Scores honnêtes : un contenu moyen = scores moyens.
-- Sections non applicables : null.
-
-FORMAT DE SORTIE
-
-Retourne UNIQUEMENT un JSON valide (sans markdown, sans backticks, sans texte autour) :
-
-{
-"title": "Titre clair et mémorable",
-"source": "Source/domaine si détectable",
-"content_type": "A | B | C",
-"summary_one_line": "L'idée centrale en 1 phrase. Le 'so what?' — pas un résumé fade, une phrase qui capture POURQUOI ce contenu compte.",
-"summary_paragraph": "Contexte + problème adressé + proposition centrale. Texte fluide, dense. 100-200 mots selon la richesse du contenu.",
-"summary_full": "Substance principale : mécanismes, idées, arguments, systèmes. TYPE A : étapes, données chiffrées, modèles. TYPE B : concepts clés, structure de pensée, ne pas aplatir des idées profondes en formules creuses. 5-12 points de 2-4 lignes chacun, autonomes.",
-"golden_nuggets": [{"title": "Titre court de l'insight", "idea": "L'idée non-évidente que la plupart des lecteurs rateraient. 3-4 lignes.", "explicit_vs_implied": "Ce que l'auteur dit VS ce qu'il implique sans le dire."}],
-"data_evidence": [{"fact": "Donnée exacte telle qu'elle apparaît dans le document", "what_it_proves": "En quoi ça change la compréhension", "reliability": "Fort | Moyen | Anecdotique"}],
-"actionable_insights": ["FAIRE : [Action concrète — QUOI + COMMENT + POURQUOI. 2-3 lignes. TYPE A et C uniquement.]", "TESTER : [Hypothèse à valider + méthode]", "ÉVITER : [Erreur identifiée + pourquoi c'est un piège]"],
-"perspective_shifts": ["Ce que ce contenu change dans la façon de voir. Quelles croyances il ébranle. Quelles questions nouvelles il ouvre. TYPE B et C uniquement. 3-4 lignes par shift."],
-"contrarian_take": "L'angle contre-intuitif que 90% des lecteurs vont rater. 1-2 phrases.",
-"blind_spots": "Ce que le contenu ne dit pas, minimise ou présuppose. Biais de l'auteur, limites, risques réels. 2-3 lignes.",
-"key_concepts": ["Concept 1", "Concept 2", "Concept 3"],
-"category": "UNE seule parmi : IA, Business, Mindset, Vibecoding, Outils, Tendances, Dev Personnel, Trading, Marketing, Science",
-"tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
-"novelty_score": 8,
-"actionability_score": 7,
-"content_potential_score": 9,
-"content_angles": {"x_twitter": "Le fait le plus contre-intuitif utilisable comme hook viral", "linkedin": "La leçon professionnelle + prise de position assumée pour décideurs", "newsletter": "L'insight que le contenu implique sans l'énoncer + question ouverte", "youtube": "Le problème nommable en 30 secondes + transformation avant/après"},
-"one_key_takeaway": "La vérité centrale. 2-3 phrases qui élèvent la réflexion — pas un résumé des sections. TYPE A : ce qui change dans ta façon d'agir. TYPE B : ce qui change dans ta façon de penser.",
-"final_rating": "Publication immédiate | Publication avec reformulation | Usage interne | Ne pas utiliser"
-}`;
+Retourne UNIQUEMENT un JSON valide (sans markdown, sans backticks) :
+{"title":"Titre du document","source":"Source ou null","content_type":"A|B|C","summary_one_line":"Idée centrale 1 phrase","summary_paragraph":"Contexte + problème. 100-200 mots.","summary_full":"SYNTHÈSE COMPLÈTE par sections logiques. TOUTES les idées, principes, concepts, méthodes. Minimum 10 points de 3-5 lignes.","golden_nuggets":[{"title":"Titre","idea":"3-5 lignes insight profond","explicit_vs_implied":"Dit vs impliqué"}],"data_evidence":[{"fact":"Donnée","what_it_proves":"Implication","reliability":"Fort|Moyen|Anecdotique"}],"actionable_insights":["FAIRE: Action détaillée","TESTER: Hypothèse","ÉVITER: Erreur"],"perspective_shifts":["Shift mental profond"],"contrarian_take":"Angle contre-intuitif","blind_spots":"Limites et biais","key_concepts":["C1","C2","C3","C4","C5"],"category":"IA|Business|Mindset|Vibecoding|Outils|Tendances|Dev Personnel|Trading|Marketing|Science","tags":["t1","t2","t3","t4","t5"],"novelty_score":7,"actionability_score":7,"content_potential_score":7,"content_angles":{"x_twitter":"Hook viral","linkedin":"Leçon pro","newsletter":"Insight profond","youtube":"Problème + transformation"},"one_key_takeaway":"Vérité centrale — ne jamais avoir besoin de lire l'original","final_rating":"Publication immédiate|Publication avec reformulation|Usage interne|Ne pas utiliser"}`;
 
 function trim(t) {
   if (t.length <= 8000) return t;
@@ -58,18 +29,31 @@ function trim(t) {
 export async function POST(req) {
   try {
     const body = await req.json();
-    const content = body?.content;
+    let content = body?.content;
     const inputType = body?.inputType;
+
     if (!content || typeof content !== "string" || content.trim().length < 10)
       return NextResponse.json({ error: "Contenu vide" }, { status: 400 });
 
+    // If URL/link, scrape via Jina Reader
+    if (inputType === "link" || inputType === "url") {
+      const url = content.trim();
+      if (url.startsWith("http")) {
+        try {
+          const r = await fetch("https://r.jina.ai/" + url, { headers: { "Accept": "text/plain" } });
+          if (r.ok) { const t = await r.text(); if (t && t.length > 50) content = t; }
+        } catch {}
+      }
+    }
+
+    const prompt = inputType === "pdf" ? P_PDF : P_TEXT;
     const prepared = trim(content.trim());
     const start = Date.now();
 
     const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": process.env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 4096, system: P, messages: [{ role: "user", content: prepared }] }),
+      body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 4096, system: prompt, messages: [{ role: "user", content: prepared }] }),
     });
 
     if (!aiRes.ok) {
@@ -115,7 +99,7 @@ export async function POST(req) {
       key_concepts: sa(parsed.key_concepts), tags: sa(parsed.tags),
       novelty_score: sn(parsed.novelty_score), actionability_score: sn(parsed.actionability_score), content_potential_score: sn(parsed.content_potential_score),
       one_key_takeaway: ss(parsed.one_key_takeaway), content_angles: so(parsed.content_angles), final_rating: ss(parsed.final_rating) || null,
-      digest_version: "v5", ai_model_used: "claude-sonnet-4", digest_duration_ms: duration,
+      digest_version: "v6", ai_model_used: "claude-sonnet-4", digest_duration_ms: duration,
     }).select().single();
 
     if (dbErr) return NextResponse.json({ error: "DB: " + dbErr.message }, { status: 500 });
