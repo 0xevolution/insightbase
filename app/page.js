@@ -48,7 +48,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [loadMsg, setLoadMsg] = useState("");
   const [input, setInput] = useState("");
-  const [inputType, setInputType] = useState("url");
+  const [inputType, setInputType] = useState("text");
   const [selArticle, setSelArticle] = useState(null);
   const [searchQ, setSearchQ] = useState("");
   const [searchRes, setSearchRes] = useState(null);
@@ -181,16 +181,54 @@ export default function Dashboard() {
   const VCapture = () => (
     <div>
       <h1 className="text-2xl font-extrabold tracking-tight mb-1">Capturer un article</h1>
-      <p className="text-gray-500 text-sm mb-5">Colle une URL, du texte brut, ou le contenu d'un PDF</p>
+      <p className="text-gray-500 text-sm mb-5">Colle du texte, une URL, un lien Twitter, ou glisse un PDF</p>
       <div className="flex gap-2 mb-4">
-        {[["url","🔗 URL"],["text","📝 Texte"],["pdf","📄 PDF"]].map(([k,l])=>
+        {[["text","📝 Texte"],["link","🔗 Lien / Thread"],["pdf","📄 PDF"]].map(([k,l])=>
           <button key={k} onClick={()=>setInputType(k)} className={`px-3.5 py-1.5 rounded-lg border-none cursor-pointer text-xs font-bold transition-all ${inputType===k?"bg-accent text-bg":"bg-white/5 text-gray-500"}`}>{l}</button>
         )}
       </div>
+
+      {inputType === "pdf" && !input && (
+        <div
+          onDragOver={e=>{e.preventDefault();e.currentTarget.style.borderColor="#00d4aa";}}
+          onDragLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.1)";}}
+          onDrop={e=>{
+            e.preventDefault();
+            e.currentTarget.style.borderColor="rgba(255,255,255,0.1)";
+            const file = e.dataTransfer.files[0];
+            if (file && file.type === "application/pdf") {
+              const reader = new FileReader();
+              reader.onload = () => {
+                try {
+                  const text = reader.result;
+                  const decoded = new TextDecoder("utf-8",{fatal:false}).decode(new Uint8Array(text));
+                  let extracted = "";
+                  const streams = decoded.match(/stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g) || [];
+                  for (const s of streams) {
+                    const clean = s.replace(/^stream[\r\n]+/,"").replace(/[\r\n]+endstream$/,"").replace(/[^\x20-\x7E\r\n]/g," ").replace(/\s+/g," ").trim();
+                    if (clean.length > 20) extracted += clean + "\n\n";
+                  }
+                  setInput(extracted.trim() || "Extraction automatique limitée. Copie-colle le contenu du PDF manuellement dans la zone texte.");
+                  setInputType("pdf");
+                  showToast("PDF chargé : " + file.name);
+                } catch { showToast("Erreur PDF. Copie-colle le contenu manuellement."); }
+              };
+              reader.readAsArrayBuffer(file);
+            } else { showToast("Seuls les fichiers PDF sont acceptés"); }
+          }}
+          onClick={()=>{const i=document.createElement("input");i.type="file";i.accept=".pdf";i.onchange=e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=()=>{try{const d=new TextDecoder("utf-8",{fatal:false}).decode(new Uint8Array(r.result));let ex="";const st=d.match(/stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g)||[];for(const s of st){const c=s.replace(/^stream[\r\n]+/,"").replace(/[\r\n]+endstream$/,"").replace(/[^\x20-\x7E\r\n]/g," ").replace(/\s+/g," ").trim();if(c.length>20)ex+=c+"\n\n";}setInput(ex.trim()||"Copie-colle le contenu du PDF manuellement.");setInputType("pdf");showToast("PDF chargé : "+f.name);}catch{showToast("Erreur PDF");}};r.readAsArrayBuffer(f);}};i.click();}}
+          className="border-2 border-dashed border-white/10 rounded-2xl p-10 mb-4 text-center cursor-pointer transition-all hover:border-white/20"
+        >
+          <p className="text-3xl mb-3">📄</p>
+          <p className="text-sm font-bold text-gray-300">Glisse ton PDF ici</p>
+          <p className="text-xs text-gray-600 mt-1">ou clique pour sélectionner un fichier</p>
+        </div>
+      )}
+
       <Card>
-        <textarea value={input} onChange={e=>setInput(e.target.value)} placeholder={inputType==="url"?"https://...":"Colle le contenu ici..."} className="w-full min-h-[130px] p-3.5 bg-white/5 border border-white/10 rounded-xl text-gray-200 text-sm outline-none resize-y font-sans" />
+        <textarea value={input} onChange={e=>setInput(e.target.value)} placeholder={inputType==="link"?"https://x.com/user/status/... ou n'importe quel lien":inputType==="pdf"?"Le contenu du PDF apparaîtra ici (ou colle-le manuellement)...":"Colle le contenu de l'article ici..."} className="w-full min-h-[130px] p-3.5 bg-white/5 border border-white/10 rounded-xl text-gray-200 text-sm outline-none resize-y font-sans" />
         <div className="flex justify-between items-center mt-3.5">
-          <span className="text-xs text-gray-600">{input.length} chars</span>
+          <span className="text-xs text-gray-600">{input.length} chars{input.trim() && " · ~" + input.trim().split(/\s+/).length + " mots"}</span>
           <Btn onClick={digest} disabled={loading||!input.trim()} className={loading||!input.trim()?"opacity-50":""}>{loading?<><IC.load s={14}/> {str(loadMsg)}</>:<><IC.zap s={14}/> Digérer</>}</Btn>
         </div>
       </Card>
