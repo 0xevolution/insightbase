@@ -190,44 +190,47 @@ export default function Dashboard() {
 
       {inputType === "pdf" && !input && (
         <div
-          onDragOver={e=>{e.preventDefault();e.currentTarget.style.borderColor="#00d4aa";}}
-          onDragLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.1)";}}
+          onDragOver={e=>{e.preventDefault();e.currentTarget.style.borderColor="#00d4aa";e.currentTarget.style.background="rgba(0,212,170,0.03)";}}
+          onDragLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.1)";e.currentTarget.style.background="transparent";}}
           onDrop={async e=>{
             e.preventDefault();
             e.currentTarget.style.borderColor="rgba(255,255,255,0.1)";
+            e.currentTarget.style.background="transparent";
             const file = e.dataTransfer.files[0];
             if (!file || file.type !== "application/pdf") { showToast("Seuls les fichiers PDF sont acceptés"); return; }
-            setLoading(true); setLoadMsg("Extraction du PDF...");
+            setLoading(true); setLoadMsg("Lecture du PDF + digestion IA...");
             try {
               const fd = new FormData(); fd.append("file", file);
               const res = await fetch("/api/pdf-digest", { method: "POST", body: fd });
               const data = await res.json();
               if (data.error) { showToast("Erreur : " + data.error); }
-              else { setInput(data.text); setInputType("pdf"); showToast("PDF extrait : " + file.name + " (" + data.pages + " pages)"); }
-            } catch (err) { showToast("Erreur PDF : " + err.message); }
+              else { await fetchArticles(); setSelArticle(data.article); setView("brief"); showToast("PDF digéré : " + file.name); }
+            } catch (err) { showToast("Erreur : " + err.message); }
             setLoading(false);
           }}
           onClick={async ()=>{
             const i = document.createElement("input"); i.type="file"; i.accept=".pdf";
             i.onchange = async e => {
               const f = e.target.files[0]; if (!f) return;
-              setLoading(true); setLoadMsg("Extraction du PDF...");
+              setLoading(true); setLoadMsg("Lecture du PDF + digestion IA...");
               try {
                 const fd = new FormData(); fd.append("file", f);
-                const res = await fetch("/api/pdf-extract", { method: "POST", body: fd });
+                const res = await fetch("/api/pdf-digest", { method: "POST", body: fd });
                 const data = await res.json();
                 if (data.error) { showToast("Erreur : " + data.error); }
-                else { setInput(data.text); setInputType("pdf"); showToast("PDF extrait : " + f.name + " (" + data.pages + " pages)"); }
-              } catch (err) { showToast("Erreur PDF : " + err.message); }
+                else { await fetchArticles(); setSelArticle(data.article); setView("brief"); showToast("PDF digéré : " + f.name); }
+              } catch (err) { showToast("Erreur : " + err.message); }
               setLoading(false);
             };
             i.click();
           }}
           className="border-2 border-dashed border-white/10 rounded-2xl p-10 mb-4 text-center cursor-pointer transition-all hover:border-white/20"
         >
-          <p className="text-3xl mb-3">📄</p>
-          <p className="text-sm font-bold text-gray-300">{loading ? str(loadMsg) : "Glisse ton PDF ici"}</p>
-          <p className="text-xs text-gray-600 mt-1">ou clique pour sélectionner un fichier</p>
+          {loading ? (
+            <div><div className="animate-spin inline-block mb-3"><IC.load s={24}/></div><p className="text-sm font-bold text-accent">{str(loadMsg)}</p></div>
+          ) : (
+            <div><p className="text-3xl mb-3">📄</p><p className="text-sm font-bold text-gray-300">Glisse ton PDF ici</p><p className="text-xs text-gray-600 mt-1">ou clique pour sélectionner — l'IA lit et digère automatiquement</p></div>
+          )}
         </div>
       )}
 
