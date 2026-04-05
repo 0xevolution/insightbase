@@ -3,15 +3,45 @@ import { createServerClient } from "@/lib/supabase-server";
 
 export const maxDuration = 60;
 
-const P_PDF = `Analyse et synthétise le contenu de ce document.
-Objectif : Extraire 100% de la valeur cognitive réelle en supprimant agressivement tout remplissage (anecdotes décoratives, répétitions, digressions, dramatisation).
-Mission : Synthèse plus courte mais intellectuellement équivalente. Conserver : toutes idées importantes, principes fondamentaux, concepts clés, modèles mentaux, méthodes actionnables, stratégies, distinctions, nuances utiles.
-Structure : Par sections logiques. Fusionner les redondances. Reformuler pour maximiser clarté.
-Contraintes : Aucune idée clé perdue. Densité informationnelle maximale. Chaque phrase justifie sa présence.
-Le résultat doit permettre de ne jamais lire le document original tout en obtenant l'intégralité des apprentissages.
+const P_PDF = `Analyse et synthétise le contenu ci-dessous, quel que soit son format.
 
-Retourne UNIQUEMENT un JSON valide (sans markdown, sans backticks) :
-{"title":"Titre du document","source":"Source ou null","content_type":"A|B|C","summary_one_line":"Idée centrale 1 phrase","summary_paragraph":"Contexte + problème. 100-200 mots.","summary_full":"SYNTHÈSE COMPLÈTE par sections logiques. TOUTES les idées, principes, concepts, méthodes. Minimum 10 points de 3-5 lignes.","golden_nuggets":[{"title":"Titre","idea":"3-5 lignes insight profond","explicit_vs_implied":"Dit vs impliqué"}],"data_evidence":[{"fact":"Donnée","what_it_proves":"Implication","reliability":"Fort|Moyen|Anecdotique"}],"actionable_insights":["FAIRE: Action détaillée","TESTER: Hypothèse","ÉVITER: Erreur"],"perspective_shifts":["Shift mental profond"],"contrarian_take":"Angle contre-intuitif","blind_spots":"Limites et biais","key_concepts":["C1","C2","C3","C4","C5"],"category":"IA|Business|Mindset|Vibecoding|Outils|Tendances|Dev Personnel|Trading|Marketing|Science","tags":["t1","t2","t3","t4","t5"],"novelty_score":7,"actionability_score":7,"content_potential_score":7,"content_angles":{"x_twitter":"Hook viral","linkedin":"Leçon pro","newsletter":"Insight profond","youtube":"Problème + transformation"},"one_key_takeaway":"Vérité centrale","final_rating":"Publication immédiate|Publication avec reformulation|Usage interne|Ne pas utiliser"}`;
+🎯 Objectif principal
+Extraire 100% de la valeur cognitive réelle du contenu, en supprimant agressivement tout ce qui n'apporte pas d'apprentissage concret : anecdotes décoratives, storytelling de remplissage, répétitions, digressions, exemples redondants, phrases creuses, dramatisation inutile. Tout cela doit être éliminé.
+
+🧠 Ta mission
+Produire une synthèse beaucoup plus courte mais intellectuellement équivalente au contenu original, en conservant : toutes les idées importantes, tous les principes fondamentaux, tous les concepts clés, tous les modèles mentaux, toutes les méthodes actionnables, toutes les stratégies, toutes les distinctions importantes, toutes les nuances utiles.
+
+🧩 Structure attendue
+Organise la synthèse par sections logiques (chapitres, parties, thèmes ou axes conceptuels selon le contenu). Si le contenu est chronologique, regroupe par idées, pas par timing. Fusionne intelligemment les idées redondantes. Reformule pour maximiser la clarté et la précision.
+
+⚠️ Contraintes strictes
+Ne perds aucune idée clé. Ne saute aucun apprentissage important. Ne résume jamais vaguement. Ne simplifie jamais au point de déformer. Ne garde rien qui n'apporte pas de valeur réelle. Priorise la densité informationnelle maximale. Chaque phrase doit justifier sa présence.
+
+✅ Résultat attendu
+Le résultat final doit permettre de ne jamais consommer le contenu original, tout en obtenant l'intégralité de ce qu'on aurait dû en apprendre, sans perte de profondeur, de nuance ou de compréhension.
+
+FORMAT : Retourne UNIQUEMENT un JSON valide (sans markdown, sans backticks) :
+{
+"title":"Titre du document",
+"source":"Source ou null",
+"content_type":"A|B|C",
+"summary_one_line":"L'idée maîtresse du document en 1 phrase percutante",
+"summary_paragraph":"Vue d'ensemble en 150-250 mots : de quoi parle ce document, quel problème il adresse, quelle est sa thèse centrale",
+"summary_full":"SYNTHÈSE COMPLÈTE STRUCTURÉE PAR SECTIONS. Chaque section = un thème ou chapitre logique du document. Format : SECTION 1 : [Titre] suivi de 3-8 lignes de contenu dense. SECTION 2 : [Titre] etc. Couvrir TOUS les chapitres/parties/thèmes. Minimum 10 sections pour un document long. Chaque section doit être autonome et contenir les idées clés, principes, méthodes et nuances de cette partie. Ne jamais résumer vaguement — chaque phrase justifie sa présence. Densité informationnelle maximale.",
+"golden_nuggets":[{"title":"Titre","idea":"Insight profond 3-5 lignes","explicit_vs_implied":"Dit vs impliqué"}],
+"data_evidence":[{"fact":"Donnée exacte","what_it_proves":"Implication","reliability":"Fort|Moyen|Anecdotique"}],
+"actionable_insights":["FAIRE: Action détaillée","TESTER: Hypothèse","ÉVITER: Erreur"],
+"perspective_shifts":["Shift mental profond 3-4 lignes"],
+"contrarian_take":"Angle contre-intuitif",
+"blind_spots":"Limites et biais du document",
+"key_concepts":["C1","C2","C3","C4","C5"],
+"category":"IA|Business|Mindset|Vibecoding|Outils|Tendances|Dev Personnel|Trading|Marketing|Science",
+"tags":["t1","t2","t3","t4","t5"],
+"novelty_score":7,"actionability_score":7,"content_potential_score":7,
+"content_angles":{"x_twitter":"Hook viral","linkedin":"Leçon pro","newsletter":"Insight profond","youtube":"Problème + transformation"},
+"one_key_takeaway":"Vérité centrale — après avoir lu cette synthèse, le lecteur ne doit JAMAIS avoir besoin de lire le document original",
+"final_rating":"Publication immédiate|Publication avec reformulation|Usage interne|Ne pas utiliser"
+}`;
 
 function trim(t) {
   if (t.length <= 8000) return t;
@@ -29,7 +59,6 @@ export async function POST(req) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // Extract text from PDF
     let fullText = "";
     try {
       const pdfParse = (await import("pdf-parse/lib/pdf-parse.js")).default;
@@ -40,10 +69,9 @@ export async function POST(req) {
     }
 
     if (!fullText || fullText.length < 20) {
-      return NextResponse.json({ error: "PDF vide ou illisible (scan/image). Copie-colle le contenu manuellement en mode Texte." }, { status: 400 });
+      return NextResponse.json({ error: "PDF vide ou illisible (scan/image). Copie-colle le contenu en mode Texte." }, { status: 400 });
     }
 
-    // Digest with Claude
     const prepared = trim(fullText);
     const start = Date.now();
 
