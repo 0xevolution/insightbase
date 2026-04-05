@@ -200,7 +200,7 @@ export default function Dashboard() {
             setLoading(true); setLoadMsg("Extraction du PDF...");
             try {
               const fd = new FormData(); fd.append("file", file);
-              const res = await fetch("/api/pdf-extract", { method: "POST", body: fd });
+              const res = await fetch("/api/pdf-digest", { method: "POST", body: fd });
               const data = await res.json();
               if (data.error) { showToast("Erreur : " + data.error); }
               else { setInput(data.text); setInputType("pdf"); showToast("PDF extrait : " + file.name + " (" + data.pages + " pages)"); }
